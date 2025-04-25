@@ -47,7 +47,7 @@ nir_file = st.sidebar.file_uploader("Upload NIR Band (NIR.tif)", type=['tif'])
 rededge_file = st.sidebar.file_uploader("Upload RedEdge Band (RE.tif) [Optional for NDRE]", type=['tif'])
 green_file = st.sidebar.file_uploader("Upload Green Band (G.tif) [Optional for GNDVI]", type=['tif'])
 
-index_choice = st.sidebar.selectbox("Select Index to Analyze", ("NDVI", "NDRE", "GNDVI", "SAVI", "LPI", "IPVI"))
+index_choice = st.sidebar.selectbox("Pilih Index Vegetasi untuk Analisis", ("NDVI", "NDRE", "GNDVI", "SAVI", "LPI", "IPVI"))
 
 required_files = red_file and nir_file
 optional_files_ok = True
