@@ -5,7 +5,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from io import BytesIO
 
-# Fungsi untuk menghitung NDVI dan NDRE
 def calculate_ndvi(nir_band, red_band):
     ndvi = (nir_band - red_band) / (nir_band + red_band + 1e-10)
     ndvi = np.clip(ndvi, -1, 1)
@@ -16,7 +15,6 @@ def calculate_ndre(nir_band, rededge_band):
     ndre = np.clip(ndre, -1, 1)
     return ndre
 
-# Fungsi untuk analisis indeks berdasarkan threshold
 def analyze_index_threshold(index_array, threshold):
     mask = index_array > threshold
     percentage_above = 100 * np.sum(mask) / mask.size
@@ -31,7 +29,7 @@ def analyze_index_threshold(index_array, threshold):
     return stats
 
 # Tampilan web
-st.title("Vegetation Indices Analyzer Online (NDVI & NDRE)")
+st.title("Analisis Index Vegetasi")
 
 st.sidebar.header("Upload Files")
 red_file = st.sidebar.file_uploader("Upload Red Band (R.tif)", type=['tif'])
