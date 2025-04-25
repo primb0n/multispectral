@@ -5,16 +5,26 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from io import BytesIO
 
+# Fungsi untuk menghitung berbagai indeks vegetasi
 def calculate_ndvi(nir_band, red_band):
-    ndvi = (nir_band - red_band) / (nir_band + red_band + 1e-10)
-    ndvi = np.clip(ndvi, -1, 1)
-    return ndvi
+    return np.clip((nir_band - red_band) / (nir_band + red_band + 1e-10), -1, 1)
 
 def calculate_ndre(nir_band, rededge_band):
-    ndre = (nir_band - rededge_band) / (nir_band + rededge_band + 1e-10)
-    ndre = np.clip(ndre, -1, 1)
-    return ndre
+    return np.clip((nir_band - rededge_band) / (nir_band + rededge_band + 1e-10), -1, 1)
 
+def calculate_gndvi(nir_band, green_band):
+    return np.clip((nir_band - green_band) / (nir_band + green_band + 1e-10), -1, 1)
+
+def calculate_savi(nir_band, red_band, L=0.5):
+    return np.clip(((nir_band - red_band) / (nir_band + red_band + L)) * (1 + L), -1, 1)
+
+def calculate_lpi(nir_band, red_band):
+    return np.clip(nir_band / (nir_band + red_band + 1e-10), 0, 1)
+
+def calculate_ipvi(nir_band, red_band):
+    return np.clip(nir_band / (nir_band + red_band + 1e-10), 0, 1)
+
+# Fungsi untuk analisis indeks berdasarkan threshold
 def analyze_index_threshold(index_array, threshold):
     mask = index_array > threshold
     percentage_above = 100 * np.sum(mask) / mask.size
@@ -35,10 +45,18 @@ st.sidebar.header("Upload Files")
 red_file = st.sidebar.file_uploader("Upload Red Band (R.tif)", type=['tif'])
 nir_file = st.sidebar.file_uploader("Upload NIR Band (NIR.tif)", type=['tif'])
 rededge_file = st.sidebar.file_uploader("Upload RedEdge Band (RE.tif) [Optional for NDRE]", type=['tif'])
+green_file = st.sidebar.file_uploader("Upload Green Band (G.tif) [Optional for GNDVI]", type=['tif'])
 
-index_choice = st.sidebar.selectbox("Select Index to Analyze", ("NDVI", "NDRE"))
+index_choice = st.sidebar.selectbox("Select Index to Analyze", ("NDVI", "NDRE", "GNDVI", "SAVI", "LPI", "IPVI"))
 
-if red_file and nir_file and (index_choice == "NDVI" or (index_choice == "NDRE" and rededge_file)):
+required_files = red_file and nir_file
+optional_files_ok = True
+if index_choice == "NDRE" and not rededge_file:
+    optional_files_ok = False
+if index_choice == "GNDVI" and not green_file:
+    optional_files_ok = False
+
+if required_files and optional_files_ok:
     with rasterio.open(red_file) as red_src:
         red = red_src.read(1).astype('float64')
         profile = red_src.profile
@@ -48,10 +66,20 @@ if red_file and nir_file and (index_choice == "NDVI" or (index_choice == "NDRE" 
 
     if index_choice == "NDVI":
         index_array = calculate_ndvi(nir, red)
-    else:  # NDRE
+    elif index_choice == "NDRE":
         with rasterio.open(rededge_file) as re_src:
             rededge = re_src.read(1).astype('float64')
         index_array = calculate_ndre(nir, rededge)
+    elif index_choice == "GNDVI":
+        with rasterio.open(green_file) as green_src:
+            green = green_src.read(1).astype('float64')
+        index_array = calculate_gndvi(nir, green)
+    elif index_choice == "SAVI":
+        index_array = calculate_savi(nir, red)
+    elif index_choice == "LPI":
+        index_array = calculate_lpi(nir, red)
+    elif index_choice == "IPVI":
+        index_array = calculate_ipvi(nir, red)
 
     st.subheader(f"{index_choice} Map")
     fig, ax = plt.subplots(figsize=(8,6))
@@ -98,4 +126,4 @@ if red_file and nir_file and (index_choice == "NDVI" or (index_choice == "NDRE" 
             mime='image/tiff'
         )
 else:
-    st.info("Please upload the necessary band files to start.")
+    st.info("Upload file yang dibutuhkan!")
