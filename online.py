@@ -3,6 +3,7 @@ import numpy as np
 import rasterio
 import pandas as pd
 import matplotlib.pyplot as plt
+from streamlit_image_coordinates import streamlit_image_coordinates
 from io import BytesIO
 
 # Fungsi untuk menghitung berbagai indeks vegetasi
@@ -47,7 +48,7 @@ nir_file = st.sidebar.file_uploader("Upload NIR Band (NIR.tif)", type=['tif'])
 rededge_file = st.sidebar.file_uploader("Upload RedEdge Band (RE.tif) [Optional for NDRE]", type=['tif'])
 green_file = st.sidebar.file_uploader("Upload Green Band (G.tif) [Optional for GNDVI]", type=['tif'])
 
-index_choice = st.sidebar.selectbox("Pilih Index Vegetasi untuk Analisis", ("NDVI", "NDRE", "GNDVI", "SAVI", "LPI", "IPVI"))
+index_choice = st.sidebar.selectbox("Select Index to Analyze", ("NDVI", "NDRE", "GNDVI", "SAVI", "LPI", "IPVI"))
 
 required_files = red_file and nir_file
 optional_files_ok = True
@@ -81,11 +82,32 @@ if required_files and optional_files_ok:
     elif index_choice == "IPVI":
         index_array = calculate_ipvi(nir, red)
 
-    st.subheader(f"{index_choice} Map")
+    st.subheader(f"{index_choice} Map (Click to Inspect)")
+
+    # Buat gambar dan simpan ke buffer
     fig, ax = plt.subplots(figsize=(8,6))
     cax = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
-    fig.colorbar(cax, ax=ax, label=index_choice)
-    st.pyplot(fig)
+    ax.axis('off')
+    fig.tight_layout()
+
+    buf = BytesIO()
+    fig.savefig(buf, format="png")
+    st.image(buf)
+    
+    # Tangkap klik di gambar
+    coords = streamlit_image_coordinates(buf, key="click_image")
+
+    if coords is not None:
+        x_pix = int(coords["x"])
+        y_pix = int(coords["y"])
+    
+        if 0 <= x_pix < index_array.shape[1] and 0 <= y_pix < index_array.shape[0]:
+            index_value = index_array[y_pix, x_pix]
+            
+            # Kalau ada transformasi geospasial, bisa konversi pixel -> lon, lat
+            # Untuk sekarang tampilkan pixel dulu
+            st.success(f"Clicked Pixel (x={x_pix}, y={y_pix})")
+            st.info(f"{index_choice} Value at point: {index_value:.3f}")
 
     # Slider untuk filter
     st.subheader("Filter Index Range")
