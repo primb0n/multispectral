@@ -83,29 +83,28 @@ if required_files and optional_files_ok:
         index_array = calculate_ipvi(nir, red)
 
     st.subheader(f"{index_choice} Map (Click to Inspect)")
-
-    # Buat gambar dan simpan ke buffer
     
-    # Buat figure
-    fig, ax = plt.subplots(figsize=(8,6))
-    cax = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
-    ax.axis('off')
-    fig.tight_layout()
+    # Normalize dulu NDVI biar bisa dijadikan image
+    ndvi_norm = (index_array - np.nanmin(index_array)) / (np.nanmax(index_array) - np.nanmin(index_array))
+    ndvi_norm = np.clip(ndvi_norm, 0, 1)
     
-    buf = BytesIO()
-    fig.savefig(buf, format="png")
-    buf.seek(0)
+    # Konversi NDVI normal ke gambar RGB (gunakan colormap matplotlib)
+    colormap = plt.get_cmap('RdYlGn')
+    ndvi_rgb = (colormap(ndvi_norm)[:, :, :3] * 255).astype(np.uint8)  # ambil hanya RGB channel
     
-    # Tampilkan ke Streamlit dan simpan sebagai variabel
-    image_display = st.image(buf)
+    # Convert ke PIL image
+    ndvi_pil = Image.fromarray(ndvi_rgb)
     
-    # Tangkap klik
-    coords = streamlit_image_coordinates(image_display, key="click_image")
+    # Tampilkan gambar pakai Streamlit Image Coordinates
+    coords = streamlit_image_coordinates(ndvi_pil, key="click_image")
     
+    st.image(ndvi_pil, caption=f"{index_choice} Map")
+    
+    # Tampilkan info klik
     if coords is not None:
         x_pix = int(coords["x"])
         y_pix = int(coords["y"])
-    
+        
         if 0 <= x_pix < index_array.shape[1] and 0 <= y_pix < index_array.shape[0]:
             index_value = index_array[y_pix, x_pix]
             st.success(f"Clicked Pixel (x={x_pix}, y={y_pix})")
