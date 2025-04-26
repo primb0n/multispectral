@@ -99,7 +99,7 @@ if required_files and optional_files_ok:
     # Tampilkan gambar dan ambil klik
     coords = streamlit_image_coordinates(ndvi_pil, key="click_image")
     
-    st.image(ndvi_pil, caption=f"{index_choice} Map", use_column_width=False, width=ndvi_pil.width)
+    st.image(ndvi_pil, caption=f"{index_choice} Map", use_container_width=False, width=ndvi_pil.width)
     
     # Kalau diklik
     if coords is not None:
