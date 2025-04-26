@@ -85,29 +85,31 @@ if required_files and optional_files_ok:
     st.subheader(f"{index_choice} Map (Click to Inspect)")
 
     # Buat gambar dan simpan ke buffer
+    
+    # Buat figure
     fig, ax = plt.subplots(figsize=(8,6))
     cax = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
     ax.axis('off')
     fig.tight_layout()
-
+    
     buf = BytesIO()
     fig.savefig(buf, format="png")
-    st.image(buf)
+    buf.seek(0)
     
-    # Tangkap klik di gambar
-    coords = streamlit_image_coordinates(buf, key="click_image")
-
+    # Tampilkan ke Streamlit dan simpan sebagai variabel
+    image_display = st.image(buf)
+    
+    # Tangkap klik
+    coords = streamlit_image_coordinates(image_display, key="click_image")
+    
     if coords is not None:
         x_pix = int(coords["x"])
         y_pix = int(coords["y"])
     
         if 0 <= x_pix < index_array.shape[1] and 0 <= y_pix < index_array.shape[0]:
             index_value = index_array[y_pix, x_pix]
-            
-            # Kalau ada transformasi geospasial, bisa konversi pixel -> lon, lat
-            # Untuk sekarang tampilkan pixel dulu
             st.success(f"Clicked Pixel (x={x_pix}, y={y_pix})")
-            st.info(f"{index_choice} Value at point: {index_value:.3f}")
+            st.info(f"{index_choice} Value: {index_value:.3f}")
 
     # Slider untuk filter
     st.subheader("Filter Index Range")
