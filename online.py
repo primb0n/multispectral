@@ -5,6 +5,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from streamlit_image_coordinates import streamlit_image_coordinates
 from io import BytesIO
+from PIL import Image
+
 
 # Fungsi untuk menghitung berbagai indeks vegetasi
 def calculate_ndvi(nir_band, red_band):
