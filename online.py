@@ -7,7 +7,6 @@ from streamlit_image_coordinates import streamlit_image_coordinates
 from io import BytesIO
 from PIL import Image
 
-
 # Fungsi untuk menghitung berbagai indeks vegetasi
 def calculate_ndvi(nir_band, red_band):
     return np.clip((nir_band - red_band) / (nir_band + red_band + 1e-10), -1, 1)
@@ -42,7 +41,7 @@ def analyze_index_threshold(index_array, threshold):
     return stats
 
 # Tampilan web
-st.title("Analisis Index Vegetasi")
+st.title("Analisis Index Vegetasi Interaktif")
 
 st.sidebar.header("Upload Files")
 red_file = st.sidebar.file_uploader("Upload Red Band (R.tif)", type=['tif'])
@@ -86,29 +85,30 @@ if required_files and optional_files_ok:
 
     st.subheader(f"{index_choice} Map (Click to Inspect)")
     
-    # Normalize dulu NDVI biar bisa dijadikan image
+    # Normalize index array agar jadi 0-1
     ndvi_norm = (index_array - np.nanmin(index_array)) / (np.nanmax(index_array) - np.nanmin(index_array))
     ndvi_norm = np.clip(ndvi_norm, 0, 1)
     
-    # Konversi NDVI normal ke gambar RGB (gunakan colormap matplotlib)
+    # Konversi ke RGB pakai colormap
     colormap = plt.get_cmap('RdYlGn')
-    ndvi_rgb = (colormap(ndvi_norm)[:, :, :3] * 255).astype(np.uint8)  # ambil hanya RGB channel
+    ndvi_rgb = (colormap(ndvi_norm)[:, :, :3] * 255).astype(np.uint8)
     
-    # Convert ke PIL image
+    # Buat PIL image
     ndvi_pil = Image.fromarray(ndvi_rgb)
     
-    # Tampilkan gambar pakai Streamlit Image Coordinates
+    # Tampilkan gambar dan ambil klik
     coords = streamlit_image_coordinates(ndvi_pil, key="click_image")
     
-    st.image(ndvi_pil, caption=f"{index_choice} Map")
+    st.image(ndvi_pil, caption=f"{index_choice} Map", use_column_width=False, width=ndvi_pil.width)
     
-    # Tampilkan info klik
+    # Kalau diklik
     if coords is not None:
         x_pix = int(coords["x"])
         y_pix = int(coords["y"])
-        
+
         if 0 <= x_pix < index_array.shape[1] and 0 <= y_pix < index_array.shape[0]:
             index_value = index_array[y_pix, x_pix]
+            
             st.success(f"Clicked Pixel (x={x_pix}, y={y_pix})")
             st.info(f"{index_choice} Value: {index_value:.3f}")
 
