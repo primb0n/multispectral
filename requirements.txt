@@ -3,3 +3,4 @@ numpy
 rasterio
 pandas
 matplotlib
+streamlit-image-coordinates
