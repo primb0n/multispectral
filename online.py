@@ -3,9 +3,7 @@ import numpy as np
 import rasterio
 import pandas as pd
 import matplotlib.pyplot as plt
-from streamlit_image_coordinates import streamlit_image_coordinates
 from io import BytesIO
-from PIL import Image
 
 # Fungsi untuk menghitung berbagai indeks vegetasi
 def calculate_ndvi(nir_band, red_band):
@@ -41,7 +39,7 @@ def analyze_index_threshold(index_array, threshold):
     return stats
 
 # Tampilan web
-st.title("Analisis Index Vegetasi Interaktif - Filtered Map Only")
+st.title("Analisis Index Vegetasi")
 
 st.sidebar.header("Upload Files")
 red_file = st.sidebar.file_uploader("Upload Red Band (R.tif)", type=['tif'])
@@ -83,6 +81,12 @@ if required_files and optional_files_ok:
     elif index_choice == "IPVI":
         index_array = calculate_ipvi(nir, red)
 
+    st.subheader(f"{index_choice} Map")
+    fig, ax = plt.subplots(figsize=(8,6))
+    cax = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
+    fig.colorbar(cax, ax=ax, label=index_choice)
+    st.pyplot(fig)
+
     # Slider untuk filter
     st.subheader("Filter Index Range")
     min_val, max_val = float(np.min(index_array)), float(np.max(index_array))
@@ -90,28 +94,11 @@ if required_files and optional_files_ok:
 
     filtered_array = np.where((index_array >= range_values[0]) & (index_array <= range_values[1]), index_array, np.nan)
 
-    # Normalize filtered map
-    ndvi_norm_filtered = (filtered_array - np.nanmin(filtered_array)) / (np.nanmax(filtered_array) - np.nanmin(filtered_array))
-    ndvi_norm_filtered = np.clip(ndvi_norm_filtered, 0, 1)
-    
-    # Convert filtered map to RGB image
-    colormap = plt.get_cmap('RdYlGn')
-    ndvi_rgb_filtered = (colormap(ndvi_norm_filtered)[:, :, :3] * 255).astype(np.uint8)
-    ndvi_pil_filtered = Image.fromarray(ndvi_rgb_filtered)
-
-    st.subheader("Filtered Map (Click to Inspect)")
-    coords = streamlit_image_coordinates(ndvi_pil_filtered, key="click_filtered")
-    st.image(ndvi_pil_filtered, caption=f"Filtered {index_choice} Map", use_container_width=False, width=ndvi_pil_filtered.width)
-
-    # Kalau klik di filtered map
-    if coords is not None:
-        x_pix = int(coords["x"])
-        y_pix = int(coords["y"])
-
-        if 0 <= x_pix < filtered_array.shape[1] and 0 <= y_pix < filtered_array.shape[0]:
-            index_value = filtered_array[y_pix, x_pix]
-            st.success(f"Clicked Pixel (x={x_pix}, y={y_pix})")
-            st.info(f"{index_choice} Value: {index_value:.3f}")
+    st.subheader("Filtered Map")
+    fig2, ax2 = plt.subplots(figsize=(8,6))
+    cax2 = ax2.imshow(filtered_array, cmap='RdYlGn', vmin=-1, vmax=1)
+    fig2.colorbar(cax2, ax=ax2, label=index_choice)
+    st.pyplot(fig2)
 
     # Statistik
     st.subheader(f"{index_choice} Threshold Analysis")
@@ -125,7 +112,7 @@ if required_files and optional_files_ok:
     df_stats = pd.DataFrame(all_stats).round(3)
     st.dataframe(df_stats)
 
-    # Download GeoTIFF dari hasil index (bukan filtered)
+    # Download GeoTIFF
     st.subheader(f"Download {index_choice} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as memfile:
