@@ -185,6 +185,24 @@ def render_index_visualization(index_array, index_name, profile):
             mime="image/tiff"
         )
 
+    #Download Citra RGB Berwarna
+    st.subheader(f"Download {index_name} RGB (Berwarna)")
+    norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
+    cmap = cm.get_cmap('RdYlGn')
+    rgba = cmap(norm(index_array))[:, :, :3]
+    rgb = (rgba * 255).astype('uint8')
+    rgb_img = Image.fromarray(rgb)
+
+    with BytesIO() as rgb_buffer:
+        rgb_img.save(rgb_buffer, format="PNG")
+        st.download_button(
+            f"Download {index_name} RGB.png",
+            data=rgb_buffer.getvalue(),
+            file_name=f"{index_name.lower()}_rgb.png",
+            mime="image/png"
+        )
+
+
 # 1) Fungsi builder Folium Map dengan caching
 # ====================================================
 @st.cache_data(show_spinner=False)
@@ -273,6 +291,23 @@ def render_index_on_google_map(index_array, index_name, profile):
             data=mem,
             file_name=f"{index_name.lower()}.tif",
             mime="image/tiff"
+        )
+        
+    #Download Citra RGB Berwarna
+    st.subheader(f"Download {index_name} RGB (Berwarna)")
+    norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
+    cmap = cm.get_cmap('RdYlGn')
+    rgba = cmap(norm(index_array))[:, :, :3]
+    rgb = (rgba * 255).astype('uint8')
+    rgb_img = Image.fromarray(rgb)
+
+    with BytesIO() as rgb_buffer:
+        rgb_img.save(rgb_buffer, format="PNG")
+        st.download_button(
+            f"Download {index_name} RGB.png",
+            data=rgb_buffer.getvalue(),
+            file_name=f"{index_name.lower()}_rgb.png",
+            mime="image/png"
         )
 
 
