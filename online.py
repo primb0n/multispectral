@@ -12,6 +12,7 @@ import subprocess
 import re
 from rasterio.transform import from_origin
 import gdown
+from streamlit_image_coordinates import streamlit_image_coordinates
 
 # ==============================
 # Fungsi Perhitungan Indeks
@@ -108,9 +109,26 @@ def safe_extract_zip(zip_path, extract_to):
 def render_index_visualization(index_array, index_name, profile):
     st.subheader(f"{index_name} Map")
     fig, ax = plt.subplots(figsize=(8,6))
-    cax = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
-    fig.colorbar(cax, ax=ax, label=index_name)
+    im = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
+    ax.axis('off')
+    buf = BytesIO()
+    fig.savefig(buf, format="png", bbox_inches='tight', dpi=150)
+    buf.seek(0)
     st.pyplot(fig)
+
+    st.subheader("Klik atau arahkan cursor untuk melihat koordinat dan nilai indeks")
+    result = streamlit_image_coordinates(buf, key=f"coord_{index_name}")
+    if result is not None:
+        row = int(result['y'])
+        col = int(result['x'])
+        if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
+            lat = profile['transform'][5] + row * profile['transform'][4]
+            lon = profile['transform'][2] + col * profile['transform'][0]
+            val = index_array[row, col]
+            st.write(f"📍 Lat: {lat:.6f}, Lon: {lon:.6f}, Value: {val:.3f}")
+
+    # Slider + Filtered Map + Statistik + Download tetap dilanjutkan seperti sebelumnya...
+
 
     st.subheader("Filter Index Range")
     min_val, max_val = float(np.min(index_array)), float(np.max(index_array))
