@@ -192,7 +192,7 @@ def make_folium_map(index_array: np.ndarray,
                     transform: Affine,
                     downsample: int = 4):
     """
-    Membangun Folium Map + ImageOverlay.
+    Membangun Folium Map + ImageOverlay dengan OpenStreetMap.
     index_array: array asli
     transform: Affine transform dari profil raster
     downsample: faktor penurunan resolusi (1 = full res)
@@ -218,13 +218,11 @@ def make_folium_map(index_array: np.ndarray,
     east  = new_transform.c + w * new_transform.a
     south = new_transform.f + h * new_transform.e
 
-    # 3. Buat map Folium
+    # 3. Buat map dengan OpenStreetMap
     m = folium.Map(
-        location=[(north+south)/2, (west+east)/2],
+        location=[(north + south) / 2, (west + east) / 2],
         zoom_start=18,
-        tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-        attr="Google Satellite",
-        subdomains=["mt0","mt1","mt2","mt3"]
+        tiles="OpenStreetMap"
     )
 
     # 4. Overlay sebagai ImageOverlay
@@ -238,6 +236,7 @@ def make_folium_map(index_array: np.ndarray,
     folium.LayerControl().add_to(m)
 
     return m
+
                         
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
