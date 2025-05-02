@@ -11,6 +11,7 @@ import glob
 import subprocess
 import re
 from rasterio.transform import from_origin
+import gdown
 
 # Fungsi NDVI dan lain-lain
 def calculate_ndvi(nir_band, red_band):
@@ -92,7 +93,7 @@ def embed_coordinates(tiff_folder, mrk_data, pixel_size=0.001905):
 
 # Streamlit interface
 st.title("Analisis dan Mosaic Citra Drone Multispektral")
-mode = st.sidebar.radio("Pilih Mode:", ("Manual Per Spektrum", "Upload Folder ZIP"))
+mode = st.sidebar.radio("Pilih Mode:", ("Manual Per Spektrum", "Upload Folder ZIP", "Ambil dari Google Drive"))
 
 if mode == "Manual Per Spektrum":
     red_file = st.sidebar.file_uploader("Red Band (R.tif)", type=['tif'])
@@ -119,13 +120,24 @@ if mode == "Manual Per Spektrum":
         st.pyplot(fig)
 
 else:
-    zip_file = st.sidebar.file_uploader("Upload Folder Drone (ZIP)", type=['zip'])
-    if zip_file:
-        temp_dir = tempfile.TemporaryDirectory()
-        extract_path = temp_dir.name
-        with ZipFile(zip_file, 'r') as zip_ref:
-            zip_ref.extractall(extract_path)
+    if mode == "Upload Folder ZIP":
+        zip_file = st.sidebar.file_uploader("Upload Folder Drone (ZIP)", type=['zip'])
+        if zip_file:
+            temp_dir = tempfile.TemporaryDirectory()
+            extract_path = temp_dir.name
+            with ZipFile(zip_file, 'r') as zip_ref:
+                zip_ref.extractall(extract_path)
+    else:
+        gdrive_url = st.text_input("Masukkan link file ZIP Google Drive (shareable link)")
+        if gdrive_url and st.button("Unduh dan Proses"):
+            temp_dir = tempfile.TemporaryDirectory()
+            extract_path = temp_dir.name
+            zip_output = os.path.join(extract_path, "input.zip")
+            gdown.download(gdrive_url, zip_output, quiet=False)
+            with ZipFile(zip_output, 'r') as zip_ref:
+                zip_ref.extractall(extract_path)
 
+    if 'extract_path' in locals():
         mrk_file = None
         for f in os.listdir(extract_path):
             if f.lower().endswith(".mrk"):
