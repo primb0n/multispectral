@@ -17,7 +17,8 @@ from PIL import Image
 import matplotlib.cm as cm
 import folium
 from streamlit_folium import st_folium
-
+from affine import Affine
+from streamlit_folium import st_folium
 
 # ==============================
 # Fungsi Perhitungan Indeks
@@ -184,16 +185,40 @@ def render_index_visualization(index_array, index_name, profile):
             mime="image/tiff"
         )
 
-def render_index_on_google_map(index_array, index_name, profile):
-    # 1) Hitung bounds dari affine transform
-    t = profile["transform"]
-    w, h = index_array.shape[1], index_array.shape[0]
-    west  = t.c
-    north = t.f
-    east  = t.c + w * t.a
-    south = t.f + h * t.e
+# 1) Fungsi builder Folium Map dengan caching
+# ====================================================
+@st.cache_data(show_spinner=False)
+def make_folium_map(index_array: np.ndarray,
+                    transform: Affine,
+                    downsample: int = 4):
+    """
+    Membangun Folium Map + ImageOverlay.
+    index_array: array asli
+    transform: Affine transform dari profil raster
+    downsample: faktor penurunan resolusi (1 = full res)
+    """
+    # 1. Downsample array
+    if downsample > 1:
+        small = index_array[::downsample, ::downsample]
+        # hitung transform baru
+        new_transform = Affine(transform.a * downsample,
+                               transform.b,
+                               transform.c,
+                               transform.d,
+                               transform.e * downsample,
+                               transform.f)
+    else:
+        small = index_array
+        new_transform = transform
 
-    # 2) Buat folium map dengan tiles Google Satellite
+    # 2. Hitung bounds
+    h, w = small.shape
+    west  = new_transform.c
+    north = new_transform.f
+    east  = new_transform.c + w * new_transform.a
+    south = new_transform.f + h * new_transform.e
+
+    # 3. Buat map Folium
     m = folium.Map(
         location=[(north+south)/2, (west+east)/2],
         zoom_start=18,
@@ -202,9 +227,9 @@ def render_index_on_google_map(index_array, index_name, profile):
         subdomains=["mt0","mt1","mt2","mt3"]
     )
 
-    # 3) Overlay array sebagai ImageOverlay
+    # 4. Overlay sebagai ImageOverlay
     folium.raster_layers.ImageOverlay(
-        image=index_array,
+        image=small,
         bounds=[[south, west], [north, east]],
         colormap=lambda x: cm.get_cmap("RdYlGn")(x),
         opacity=0.6,
@@ -212,17 +237,28 @@ def render_index_on_google_map(index_array, index_name, profile):
     ).add_to(m)
     folium.LayerControl().add_to(m)
 
-    # 4) Tampilkan di Streamlit dan tangkap klik terakhir
-    st.subheader("Klik di peta untuk koordinat & nilai indeks")
-    data = st_folium(m, width=700, height=500)
+    return m
+                        
+def render_index_on_google_map(index_array, index_name, profile):
+    st.subheader(f"{index_name} di Google Map")
+    # pilih downsample via slider (opsional)
+    ds = st.slider("Faktor downsampling (percepatan)", 1, 10, 4)
+
+    with st.spinner("🔄 Membangun peta Google Satellite…"):
+        m = make_folium_map(index_array, profile["transform"], downsample=ds)
+        data = st_folium(m, width=700, height=500)
+
+    # ambil klik terakhir
     clicked = data.get("last_clicked")
     if clicked:
         lat, lon = clicked["lat"], clicked["lng"]
+        # hitung baris/kolom di array full-res
+        t = profile["transform"]
         col = int((lon - t.c) / t.a)
         row = int((lat - t.f) / t.e)
-        if 0 <= row < h and 0 <= col < w:
+        if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             val = float(index_array[row, col])
-            st.write(f"📍 Lat: {lat:.6f}, Lon: {lon:.6f} → Value: **{val:.4f}**")
+            st.write(f"📍 Lat: **{lat:.6f}**, Lon: **{lon:.6f}** → {index_name}: **{val:.4f}**")
         else:
             st.warning("Klik di luar area citra.")
 
