@@ -200,32 +200,33 @@ def make_folium_map(index_array: np.ndarray,
     # 1. Downsample array
     if downsample > 1:
         small = index_array[::downsample, ::downsample]
-        # hitung transform baru
-        new_transform = Affine(transform.a * downsample,
-                               transform.b,
-                               transform.c,
-                               transform.d,
-                               transform.e * downsample,
-                               transform.f)
+        new_transform = Affine(
+            transform.a * downsample,
+            transform.b,
+            transform.c,
+            transform.d,
+            transform.e * downsample,
+            transform.f
+        )
     else:
         small = index_array
         new_transform = transform
 
-    # 2. Hitung bounds
+    # 2. Hitung bounds dari transform
     h, w = small.shape
-    west  = new_transform.c
+    west = new_transform.c
     north = new_transform.f
-    east  = new_transform.c + w * new_transform.a
-    south = new_transform.f + h * new_transform.e
+    east = west + w * new_transform.a
+    south = north + h * new_transform.e  # e biasanya negatif
 
-    # 3. Buat map dengan OpenStreetMap
+    # 3. Buat peta Folium
     m = folium.Map(
         location=[(north + south) / 2, (west + east) / 2],
-        zoom_start=18,
+        zoom_start=16,
         tiles="OpenStreetMap"
     )
 
-    # 4. Overlay sebagai ImageOverlay
+    # 4. Overlay citra indeks
     folium.raster_layers.ImageOverlay(
         image=small,
         bounds=[[south, west], [north, east]],
