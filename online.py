@@ -188,56 +188,42 @@ def render_index_visualization(index_array, index_name, profile):
 # 1) Fungsi builder Folium Map dengan caching
 # ====================================================
 @st.cache_data(show_spinner=False)
-def make_folium_map(index_array: np.ndarray,
-                    transform: Affine,
-                    downsample: int = 4):
-    """
-    Membangun Folium Map + ImageOverlay dengan OpenStreetMap.
-    index_array: array asli
-    transform: Affine transform dari profil raster
-    downsample: faktor penurunan resolusi (1 = full res)
-    """
-    # 1. Downsample array
-    if downsample > 1:
-        small = index_array[::downsample, ::downsample]
-        new_transform = Affine(
-            transform.a * downsample,
-            transform.b,
-            transform.c,
-            transform.d,
-            transform.e * downsample,
-            transform.f
-        )
-    else:
-        small = index_array
-        new_transform = transform
+def make_folium_map(index_array, transform):
+    # 1. Konversi indeks ke RGB
+    norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
+    cmap = cm.get_cmap("RdYlGn")
+    rgba = cmap(norm(index_array))  # (H, W, 4)
+    rgb = (rgba[:, :, :3] * 255).astype(np.uint8)
 
-    # 2. Hitung bounds dari transform
-    h, w = small.shape
-    west = new_transform.c
-    north = new_transform.f
-    east = west + w * new_transform.a
-    south = north + h * new_transform.e  # e biasanya negatif
+    # 2. Simpan sebagai file PNG sementara
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
+        Image.fromarray(rgb).save(tmpfile.name)
+        image_path = tmpfile.name
 
-    # 3. Buat peta Folium
+    # 3. Hitung koordinat geospasial
+    h, w = index_array.shape
+    west  = transform.c
+    north = transform.f
+    east  = west + w * transform.a
+    south = north + h * transform.e
+
+    # 4. Bangun peta dengan OpenStreetMap
     m = folium.Map(
         location=[(north + south) / 2, (west + east) / 2],
-        zoom_start=16,
-        tiles="OpenStreetMap"
+        zoom_start=17,
+        tiles='OpenStreetMap'
     )
 
-    # 4. Overlay citra indeks
+    # 5. Tampilkan image overlay
     folium.raster_layers.ImageOverlay(
-        image=small,
+        name='Vegetation Index',
+        image=image_path,
         bounds=[[south, west], [north, east]],
-        colormap=lambda x: cm.get_cmap("RdYlGn")(x),
-        opacity=0.6,
-        name="Index"
+        opacity=0.6
     ).add_to(m)
+
     folium.LayerControl().add_to(m)
-
     return m
-
                         
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
@@ -245,7 +231,7 @@ def render_index_on_google_map(index_array, index_name, profile):
     ds = 4
 
     with st.spinner("🔄 Membangun peta Google Satellite…"):
-        m = make_folium_map(index_array, profile["transform"], downsample=ds)
+        m = make_folium_map(index_array, profile["transform"])
         data = st_folium(m, width=700, height=500)
 
     # ambil klik terakhir
