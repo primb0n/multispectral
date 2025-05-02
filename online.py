@@ -107,58 +107,64 @@ def safe_extract_zip(zip_path, extract_to):
         return False
 
 def render_index_visualization(index_array, index_name, profile):
-    # -- Plot dasar dengan Matplotlib
     st.subheader(f"{index_name} Map")
+    # 1) Tampilkan peta statis dengan matplotlib
     fig, ax = plt.subplots(figsize=(8,6))
     im = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
     ax.axis('off')
     fig.colorbar(im, ax=ax, label=index_name)
-    # Simpan figure ke buffer untuk interaktif
-    buf = BytesIO()
-    fig.savefig(buf, format="png", bbox_inches='tight', dpi=150)
-    buf.seek(0)
     st.pyplot(fig)
 
-    # -- Fitur hover/click koordinat & nilai indeks
-    st.subheader("Klik/Arahkan kursor untuk koordinat & nilai")
-    result = streamlit_image_coordinates(buf, key=f"coord_{index_name}")
-    if result:
-        row, col = int(result['y']), int(result['x'])
-        if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
-            lat = profile['transform'][5] + row * profile['transform'][4]
-            lon = profile['transform'][2] + col * profile['transform'][0]
-            val = index_array[row, col]
-            st.write(f"📍 Lat: {lat:.6f}, Lon: {lon:.6f} — {index_name}: {val:.3f}")
+    # 2) Buat gambar RGB dari array untuk interaksi
+    norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
+    cmap = cm.get_cmap('RdYlGn')
+    rgba = cmap(norm(index_array))         # Bentuk (baris, kolom, 4)
+    rgb = (rgba[:, :, :3] * 255).astype('uint8')
+    img = Image.fromarray(rgb)
 
-    # -- Slider filter & map hasil filter
+    # 3) Interaksi: klik/hover untuk dapat (x,y)
+    st.subheader("Klik atau arahkan kursor untuk koordinat & nilai")
+    coords = streamlit_image_coordinates(img, key=f"coord_{index_name}", width=600)
+    if coords:
+        row, col = coords["y"], coords["x"]
+        if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
+            # Hitung koordinat geografis
+            t = profile["transform"]
+            lon = t.c + col * t.a
+            lat = t.f + row * t.e
+            val = float(index_array[row, col])
+            st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}**")
+
+    # 4) Filter range seperti sebelumnya
     st.subheader("Filter Index Range")
-    min_val, max_val = float(np.min(index_array)), float(np.max(index_array))
-    lo, hi = st.slider(f"Rentang {index_name}", min_val, max_val, (min_val, max_val), 0.01)
-    filtered = np.where((index_array>=lo)&(index_array<=hi), index_array, np.nan)
+    mn, mx = float(index_array.min()), float(index_array.max())
+    lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
+    filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
     fig2, ax2 = plt.subplots(figsize=(8,6))
     im2 = ax2.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
     ax2.axis('off')
     fig2.colorbar(im2, ax=ax2, label=index_name)
     st.pyplot(fig2)
 
-    # -- Statistik threshold
+    # 5) Statistik threshold
     st.subheader(f"{index_name} Threshold Analysis")
-    stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1,0.3,0.5)}
+    stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1, 0.3, 0.5)}
     st.dataframe(pd.DataFrame(stats).round(3))
 
-    # -- Download GeoTIFF
+    # 6) Download GeoTIFF
     st.subheader(f"Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
-    with BytesIO() as memfile:
-        with rasterio.open(memfile, 'w', **profile) as dst:
+    with BytesIO() as mem:
+        with rasterio.open(mem, 'w', **profile) as dst:
             dst.write(index_array.astype(rasterio.float32), 1)
-        memfile.seek(0)
+        mem.seek(0)
         st.download_button(
-            label=f"Download {index_name}",
-            data=memfile,
+            f"Download {index_name}.tif",
+            data=mem,
             file_name=f"{index_name.lower()}.tif",
             mime="image/tiff"
         )
+
 
 # ==============================
 # Streamlit App
