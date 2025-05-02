@@ -13,6 +13,8 @@ import re
 from rasterio.transform import from_origin
 import gdown
 from streamlit_image_coordinates import streamlit_image_coordinates
+from PIL import Image
+import matplotlib.cm as cm
 
 # ==============================
 # Fungsi Perhitungan Indeks
