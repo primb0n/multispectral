@@ -91,35 +91,89 @@ def embed_coordinates(tiff_folder, mrk_data, pixel_size=0.001905):
             with rasterio.open(file_path, 'w', **profile) as dst:
                 dst.write(image, 1)
 
-# Streamlit interface
+def render_index_visualization(index_array, index_name, profile):
+    st.subheader(f"{index_name} Map")
+    fig, ax = plt.subplots(figsize=(8,6))
+    cax = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
+    fig.colorbar(cax, ax=ax, label=index_name)
+    st.pyplot(fig)
+
+    st.subheader("Filter Index Range")
+    min_val, max_val = float(np.min(index_array)), float(np.max(index_array))
+    range_values = st.slider(f'Select Range for {index_name}', min_value=min_val, max_value=max_val, value=(min_val, max_val), step=0.01)
+    filtered_array = np.where((index_array >= range_values[0]) & (index_array <= range_values[1]), index_array, np.nan)
+    st.subheader("Filtered Map")
+    fig2, ax2 = plt.subplots(figsize=(8,6))
+    cax2 = ax2.imshow(filtered_array, cmap='RdYlGn', vmin=-1, vmax=1)
+    fig2.colorbar(cax2, ax=ax2, label=index_name)
+    st.pyplot(fig2)
+
+    st.subheader(f"{index_name} Threshold Analysis")
+    thresholds = [0.1, 0.3, 0.5]
+    all_stats = {}
+    for threshold in thresholds:
+        stats = analyze_index_threshold(index_array, threshold)
+        all_stats[threshold] = stats
+    df_stats = pd.DataFrame(all_stats).round(3)
+    st.dataframe(df_stats)
+
+    st.subheader(f"Download {index_name} GeoTIFF")
+    profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
+    with BytesIO() as memfile:
+        with rasterio.open(memfile, 'w', **profile) as dst:
+            dst.write(index_array.astype(rasterio.float32), 1)
+        memfile.seek(0)
+        st.download_button(
+            label=f"Download {index_name} TIFF",
+            data=memfile,
+            file_name=f'{index_name.lower()}_result.tif',
+            mime='image/tiff'
+        )
+
 st.title("Analisis dan Mosaic Citra Drone Multispektral")
-mode = st.sidebar.radio("Pilih Mode:", ("Manual Per Spektrum", "Upload Folder ZIP", "Ambil dari Google Drive"))
+mode = st.sidebar.radio("Pilih Mode:", ("Manual", "Upload Folder ZIP", "Google Drive ZIP"))
 
-if mode == "Manual Per Spektrum":
-    red_file = st.sidebar.file_uploader("Red Band (R.tif)", type=['tif'])
-    nir_file = st.sidebar.file_uploader("NIR Band (NIR.tif)", type=['tif'])
-    rededge_file = st.sidebar.file_uploader("RedEdge Band (RE.tif) [opsional]", type=['tif'])
-    green_file = st.sidebar.file_uploader("Green Band (G.tif) [opsional]", type=['tif'])
+if mode == "Manual":
+    red_file = st.sidebar.file_uploader("Upload Red Band (R.tif)", type=['tif'])
+    nir_file = st.sidebar.file_uploader("Upload NIR Band (NIR.tif)", type=['tif'])
+    rededge_file = st.sidebar.file_uploader("Upload RedEdge Band (RE.tif)", type=['tif'])
+    green_file = st.sidebar.file_uploader("Upload Green Band (G.tif)", type=['tif'])
 
-    if red_file and nir_file:
+    index_choice = st.sidebar.selectbox("Pilih Indeks untuk Ditampilkan", ("NDVI", "NDRE", "GNDVI", "SAVI", "LPI", "IPVI"))
+
+    required = red_file and nir_file
+    if required:
         with rasterio.open(red_file) as src:
             red = src.read(1).astype('float64')
             profile = src.profile
         with rasterio.open(nir_file) as src:
             nir = src.read(1).astype('float64')
 
-        ndvi = calculate_ndvi(nir, red)
-        savi = calculate_savi(nir, red)
-        lpi = calculate_lpi(nir, red)
-        ipvi = calculate_ipvi(nir, red)
+        if index_choice == "NDVI":
+            index_array = calculate_ndvi(nir, red)
+        elif index_choice == "SAVI":
+            index_array = calculate_savi(nir, red)
+        elif index_choice == "LPI":
+            index_array = calculate_lpi(nir, red)
+        elif index_choice == "IPVI":
+            index_array = calculate_ipvi(nir, red)
+        elif index_choice == "NDRE" and rededge_file:
+            with rasterio.open(rededge_file) as src:
+                rededge = src.read(1).astype('float64')
+            index_array = calculate_ndre(nir, rededge)
+        elif index_choice == "GNDVI" and green_file:
+            with rasterio.open(green_file) as src:
+                green = src.read(1).astype('float64')
+            index_array = calculate_gndvi(nir, green)
+        else:
+            st.warning("Band pendukung belum diupload")
+            st.stop()
 
-        st.subheader("NDVI Manual Upload")
-        fig, ax = plt.subplots()
-        im = ax.imshow(ndvi, cmap='RdYlGn', vmin=-1, vmax=1)
-        plt.colorbar(im, ax=ax)
-        st.pyplot(fig)
+        render_index_visualization(index_array, index_choice, profile)
+    else:
+        st.info("Upload file minimal Red dan NIR untuk NDVI/SAVI/LPI/IPVI")
 
-else:
+elif mode in ("Upload Folder ZIP", "Google Drive ZIP"):
     if mode == "Upload Folder ZIP":
         zip_file = st.sidebar.file_uploader("Upload Folder Drone (ZIP)", type=['zip'])
         if zip_file:
@@ -128,8 +182,8 @@ else:
             with ZipFile(zip_file, 'r') as zip_ref:
                 zip_ref.extractall(extract_path)
     else:
-        gdrive_url = st.text_input("Masukkan link file ZIP Google Drive (shareable link)")
-        if gdrive_url and st.button("Unduh dan Proses"):
+        gdrive_url = st.text_input("Masukkan link ZIP dari Google Drive")
+        if gdrive_url and st.button("Download"):
             temp_dir = tempfile.TemporaryDirectory()
             extract_path = temp_dir.name
             zip_output = os.path.join(extract_path, "input.zip")
@@ -179,22 +233,13 @@ else:
                 nir = src.read(4).astype('float32')
                 meta = src.meta.copy()
 
-            ndvi = calculate_ndvi(nir, red)
-            ndre = calculate_ndre(nir, rededge)
-            gndvi = calculate_gndvi(nir, green)
-            savi = calculate_savi(nir, red)
-            lpi = calculate_lpi(nir, red)
-            ipvi = calculate_ipvi(nir, red)
-
-            meta.update(dtype=rasterio.float32, count=1)
-
             index_maps = {
-                "NDVI": ndvi,
-                "NDRE": ndre,
-                "GNDVI": gndvi,
-                "SAVI": savi,
-                "LPI": lpi,
-                "IPVI": ipvi
+                "NDVI": calculate_ndvi(nir, red),
+                "NDRE": calculate_ndre(nir, rededge),
+                "GNDVI": calculate_gndvi(nir, green),
+                "SAVI": calculate_savi(nir, red),
+                "LPI": calculate_lpi(nir, red),
+                "IPVI": calculate_ipvi(nir, red)
             }
 
             for name, arr in index_maps.items():
@@ -204,13 +249,8 @@ else:
 
             st.subheader("Tampilan Mosaic Indeks Vegetasi")
             index_option = st.selectbox("Pilih indeks untuk ditampilkan", list(index_maps.keys()))
-            path = os.path.join(output_folder, f"{index_option}.tif")
-            with rasterio.open(path) as src:
-                arr = src.read(1)
-            fig, ax = plt.subplots()
-            im = ax.imshow(arr, cmap='RdYlGn', vmin=-1, vmax=1)
-            plt.colorbar(im, ax=ax)
-            st.pyplot(fig)
-
-            with open(path, "rb") as f:
-                st.download_button("Download Mosaic GeoTIFF", f, file_name=f"{index_option}.tif")
+            selected_path = os.path.join(output_folder, f"{index_option}.tif")
+            with rasterio.open(selected_path) as src:
+                data = src.read(1)
+                profile = src.profile
+            render_index_visualization(data, index_option, profile)
