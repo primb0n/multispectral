@@ -287,28 +287,41 @@ mode = st.sidebar.radio("Pilih Mode:", ("Manual", "Upload Folder ZIP", "Google D
 
 if mode == "Manual":
     red_file   = st.sidebar.file_uploader("Red Band (R.tif)",   type=['tif'])
-    nir_file   = st.sidebar.file_uploader("NIR Band (NIR.tif)",  type=['tif'])
+    nir_file   = st.sidebar.file_uploader("NIR Band (NIR.tif)", type=['tif'])
     rededge_file = st.sidebar.file_uploader("RedEdge Band (RE.tif) [opsional]", type=['tif'])
-    green_file = st.sidebar.file_uploader("Green Band (G.tif) [opsional]",     type=['tif'])
+    green_file = st.sidebar.file_uploader("Green Band (G.tif) [opsional]", type=['tif'])
 
     index_choice = st.sidebar.selectbox("Pilih Indeks:", ("NDVI","NDRE","GNDVI","SAVI","LPI","IPVI"))
 
     if red_file and nir_file:
-        with rasterio.open(red_file) as src: red = src.read(1).astype('float64'); profile = src.profile
-        with rasterio.open(nir_file) as src: nir = src.read(1).astype('float64')
+        # Baca RED
+        with rasterio.open(red_file) as src:
+            red = src.read(1).astype('float64')
+            profile = src.profile.copy()
+            t = profile["transform"]
+            if t.e > 0:  # Koreksi arah sumbu-y jika perlu
+                profile["transform"] = Affine(t.a, t.b, t.c, t.d, -t.e, t.f)
 
+        # Baca NIR
+        with rasterio.open(nir_file) as src:
+            nir = src.read(1).astype('float64')
+
+        # Hitung indeks yang dipilih
         index_array = None
         if   index_choice=="NDVI":  index_array = calculate_ndvi(nir, red)
         elif index_choice=="SAVI":  index_array = calculate_savi(nir, red)
         elif index_choice=="LPI":   index_array = calculate_lpi(nir, red)
         elif index_choice=="IPVI":  index_array = calculate_ipvi(nir, red)
         elif index_choice=="NDRE" and rededge_file:
-            with rasterio.open(rededge_file) as src: rededge = src.read(1).astype('float64')
+            with rasterio.open(rededge_file) as src:
+                rededge = src.read(1).astype('float64')
             index_array = calculate_ndre(nir, rededge)
         elif index_choice=="GNDVI" and green_file:
-            with rasterio.open(green_file) as src: green = src.read(1).astype('float64')
+            with rasterio.open(green_file) as src:
+                green = src.read(1).astype('float64')
             index_array = calculate_gndvi(nir, green)
 
+        # Tampilkan hasil
         if index_array is not None:
             use_map = st.checkbox("Tampilkan di Google Map", value=False)
             if use_map:
