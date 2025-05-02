@@ -189,52 +189,70 @@ def render_index_visualization(index_array, index_name, profile):
 # ====================================================
 @st.cache_data(show_spinner=False)
 def make_folium_map(index_array: np.ndarray,
-                    transform: Affine):
+                    transform: Affine,
+                    downsample: int = 4):
     """
-    Membangun Folium Map dengan overlay RGB dari indeks.
+    Membangun Folium Map + ImageOverlay.
+    index_array: array asli
+    transform: Affine transform dari profil raster
+    downsample: faktor penurunan resolusi (1 = full res)
     """
-    # Hitung bounds
-    h, w = index_array.shape
-    west  = transform.c
-    north = transform.f
-    east  = transform.c + w * transform.a
-    south = transform.f + h * transform.e
+    # 1. Downsample array
+    if downsample > 1:
+        small = index_array[::downsample, ::downsample]
+        # hitung transform baru
+        new_transform = Affine(transform.a * downsample,
+                               transform.b,
+                               transform.c,
+                               transform.d,
+                               transform.e * downsample,
+                               transform.f)
+    else:
+        small = index_array
+        new_transform = transform
 
-    # Normalisasi → RGB
-    norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
-    cmap = cm.get_cmap("RdYlGn")
-    rgba = cmap(norm(index_array))[:, :, :3]  # ambil RGB saja
-    rgb = (rgba * 255).astype(np.uint8)
+    # 2. Hitung bounds
+    h, w = small.shape
+    west  = new_transform.c
+    north = new_transform.f
+    east  = new_transform.c + w * new_transform.a
+    south = new_transform.f + h * new_transform.e
 
-    # Buat map Google Satellite
+    # 3. Buat map Folium
     m = folium.Map(
         location=[(north+south)/2, (west+east)/2],
         zoom_start=18,
-        tiles="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-        attr="Google Satellite"
+        tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        attr="Google Satellite",
+        subdomains=["mt0","mt1","mt2","mt3"]
     )
 
-    # Tambahkan overlay warna
+    # 4. Overlay sebagai ImageOverlay
     folium.raster_layers.ImageOverlay(
-        image=rgb,
+        image=small,
         bounds=[[south, west], [north, east]],
+        colormap=lambda x: cm.get_cmap("RdYlGn")(x),
         opacity=0.6,
-        name="Indeks RGB"
+        name="Index"
     ).add_to(m)
     folium.LayerControl().add_to(m)
-    return m, rgb
 
+    return m
+                        
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
+    # pilih downsample via slider (opsional)
+    ds = st.slider("Faktor downsampling (percepatan)", 1, 10, 4)
 
     with st.spinner("🔄 Membangun peta Google Satellite…"):
-        m, rgb_img = make_folium_map(index_array, profile["transform"])
+        m = make_folium_map(index_array, profile["transform"], downsample=ds)
         data = st_folium(m, width=700, height=500)
 
-    # 1. Ambil klik terakhir
+    # ambil klik terakhir
     clicked = data.get("last_clicked")
     if clicked:
         lat, lon = clicked["lat"], clicked["lng"]
+        # hitung baris/kolom di array full-res
         t = profile["transform"]
         col = int((lon - t.c) / t.a)
         row = int((lat - t.f) / t.e)
@@ -244,7 +262,7 @@ def render_index_on_google_map(index_array, index_name, profile):
         else:
             st.warning("Klik di luar area citra.")
 
-    # 2. Filter range nilai
+    # 4) Filter range seperti sebelumnya
     st.subheader("Filter Index Range")
     mn, mx = float(index_array.min()), float(index_array.max())
     lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
@@ -255,36 +273,24 @@ def render_index_on_google_map(index_array, index_name, profile):
     fig2.colorbar(im2, ax=ax2, label=index_name)
     st.pyplot(fig2)
 
-    # 3. Analisis threshold
+    # 5) Statistik threshold
     st.subheader(f"{index_name} Threshold Analysis")
     stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1, 0.3, 0.5)}
     st.dataframe(pd.DataFrame(stats).round(3))
 
-    # 4. Download GeoTIFF nilai indeks
-    st.subheader(f"Download GeoTIFF ({index_name})")
+    # 6) Download GeoTIFF
+    st.subheader(f"Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as mem:
         with rasterio.open(mem, 'w', **profile) as dst:
             dst.write(index_array.astype(rasterio.float32), 1)
         mem.seek(0)
         st.download_button(
-            f"⬇ Download {index_name}.tif",
+            f"Download {index_name}.tif",
             data=mem,
             file_name=f"{index_name.lower()}.tif",
             mime="image/tiff"
         )
-
-    # 5. Download RGB hasil kolormapping
-    st.subheader(f"Download RGB ({index_name})")
-    img = Image.fromarray(rgb_img)
-    rgb_io = BytesIO()
-    img.save(rgb_io, format="PNG")
-    st.download_button(
-        label="⬇ Download RGB Image (PNG)",
-        data=rgb_io.getvalue(),
-        file_name=f"{index_name.lower()}_rgb.png",
-        mime="image/png"
-    )
 
 
 # ==============================
