@@ -191,16 +191,9 @@ def render_index_visualization(index_array, index_name, profile):
 def make_folium_map(index_array: np.ndarray,
                     transform: Affine,
                     downsample: int = 4):
-    """
-    Membangun Folium Map + ImageOverlay.
-    index_array: array asli
-    transform: Affine transform dari profil raster
-    downsample: faktor penurunan resolusi (1 = full res)
-    """
     # 1. Downsample array
     if downsample > 1:
         small = index_array[::downsample, ::downsample]
-        # hitung transform baru
         new_transform = Affine(transform.a * downsample,
                                transform.b,
                                transform.c,
@@ -211,48 +204,49 @@ def make_folium_map(index_array: np.ndarray,
         small = index_array
         new_transform = transform
 
-    # 2. Hitung bounds
+    # 2. Normalisasi nilai ke 0-1
+    small = np.clip(small, np.nanmin(small), np.nanmax(small))
+    small = (small - np.nanmin(small)) / (np.nanmax(small) - np.nanmin(small) + 1e-10)
+    small = np.nan_to_num(small, nan=0)
+
+    # 3. Hitung batas koordinat
     h, w = small.shape
     west  = new_transform.c
     north = new_transform.f
     east  = new_transform.c + w * new_transform.a
     south = new_transform.f + h * new_transform.e
 
-    # 3. Buat map Folium
+    # 4. Bangun peta
     m = folium.Map(
-        location=[(north+south)/2, (west+east)/2],
+        location=[(north + south) / 2, (west + east) / 2],
         zoom_start=18,
         tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
         attr="Google Satellite",
-        subdomains=["mt0","mt1","mt2","mt3"]
+        subdomains=["mt0", "mt1", "mt2", "mt3"]
     )
 
-    # 4. Overlay sebagai ImageOverlay
     folium.raster_layers.ImageOverlay(
         image=small,
         bounds=[[south, west], [north, east]],
-        colormap=lambda x: cm.get_cmap("RdYlGn")(x),
+        colormap=lambda x: tuple(cm.get_cmap("RdYlGn")(x)[:3]),
         opacity=0.6,
         name="Index"
     ).add_to(m)
     folium.LayerControl().add_to(m)
-
     return m
-                        
+
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
-    # pilih downsample via slider (opsional)
-    ds = st.slider("Faktor downsampling (percepatan)", 1, 10, 4)
+    
+    ds = 4  # gunakan nilai downsampling tetap, tidak ditampilkan di UI
 
     with st.spinner("🔄 Membangun peta Google Satellite…"):
         m = make_folium_map(index_array, profile["transform"], downsample=ds)
         data = st_folium(m, width=700, height=500)
 
-    # ambil klik terakhir
     clicked = data.get("last_clicked")
     if clicked:
         lat, lon = clicked["lat"], clicked["lng"]
-        # hitung baris/kolom di array full-res
         t = profile["transform"]
         col = int((lon - t.c) / t.a)
         row = int((lat - t.f) / t.e)
