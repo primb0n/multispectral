@@ -260,9 +260,14 @@ if mode == "Manual":
             index_array = calculate_gndvi(nir, green)
 
         if index_array is not None:
-            render_index_visualization(index_array, index_choice, profile)
+            use_map = st.checkbox("Tampilkan di Google Map", value=False)
+            if use_map:
+                render_index_on_google_map(index_array, index_choice, profile)
+            else:
+                render_index_visualization(index_array, index_choice, profile)
         else:
             st.warning("Spektrum pendukung belum diupload.")
+
 
 elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
     extract_path = None
