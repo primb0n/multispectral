@@ -4,7 +4,6 @@ rasterio
 pandas
 matplotlib
 streamlit-image-coordinates
-gdal
 folium
 streamlit-folium
 pillow
