@@ -227,18 +227,15 @@ def make_folium_map(index_array, transform):
                         
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
-    # pilih downsample via slider (opsional)
-    ds = 4
 
-    with st.spinner("🔄 Membangun peta Google Satellite…"):
+    with st.spinner("🔄 Membangun peta berbasis OpenStreetMap..."):
         m = make_folium_map(index_array, profile["transform"])
         data = st_folium(m, width=700, height=500)
 
-    # ambil klik terakhir
+    # Klik koordinat
     clicked = data.get("last_clicked")
     if clicked:
         lat, lon = clicked["lat"], clicked["lng"]
-        # hitung baris/kolom di array full-res
         t = profile["transform"]
         col = int((lon - t.c) / t.a)
         row = int((lat - t.f) / t.e)
@@ -248,7 +245,7 @@ def render_index_on_google_map(index_array, index_name, profile):
         else:
             st.warning("Klik di luar area citra.")
 
-    # 4) Filter range seperti sebelumnya
+    # Filter rentang indeks
     st.subheader("Filter Index Range")
     mn, mx = float(index_array.min()), float(index_array.max())
     lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
@@ -259,12 +256,12 @@ def render_index_on_google_map(index_array, index_name, profile):
     fig2.colorbar(im2, ax=ax2, label=index_name)
     st.pyplot(fig2)
 
-    # 5) Statistik threshold
+    # Analisis threshold
     st.subheader(f"{index_name} Threshold Analysis")
     stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1, 0.3, 0.5)}
     st.dataframe(pd.DataFrame(stats).round(3))
 
-    # 6) Download GeoTIFF
+    # Download GeoTIFF
     st.subheader(f"Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as mem:
