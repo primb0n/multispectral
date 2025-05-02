@@ -129,7 +129,6 @@ def render_index_visualization(index_array, index_name, profile):
 
     # 3) Interaksi: klik/hover untuk dapat (x,y)
     st.subheader("Klik atau arahkan kursor untuk koordinat & nilai")
-      # — Skala untuk tampilan width=600 agar klik akurat — 
     orig_w, orig_h = img.size
     disp_w = 600
     disp_h = int(orig_h * disp_w / orig_w)
@@ -141,7 +140,6 @@ def render_index_visualization(index_array, index_name, profile):
         key=f"coord_{index_name}",
         width=disp_w
     )
-
     if coords:
         raw_x = coords["x"] * scale_x
         raw_y = coords["y"] * scale_y
@@ -155,6 +153,36 @@ def render_index_visualization(index_array, index_name, profile):
             st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}**")
         else:
             st.warning("Klik di luar area citra.")
+
+    # 4) Filter range seperti sebelumnya
+    st.subheader("Filter Index Range")
+    mn, mx = float(index_array.min()), float(index_array.max())
+    lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
+    filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
+    fig2, ax2 = plt.subplots(figsize=(8,6))
+    im2 = ax2.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
+    ax2.axis('off')
+    fig2.colorbar(im2, ax=ax2, label=index_name)
+    st.pyplot(fig2)
+
+    # 5) Statistik threshold
+    st.subheader(f"{index_name} Threshold Analysis")
+    stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1, 0.3, 0.5)}
+    st.dataframe(pd.DataFrame(stats).round(3))
+
+    # 6) Download GeoTIFF
+    st.subheader(f"Download {index_name} GeoTIFF")
+    profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
+    with BytesIO() as mem:
+        with rasterio.open(mem, 'w', **profile) as dst:
+            dst.write(index_array.astype(rasterio.float32), 1)
+        mem.seek(0)
+        st.download_button(
+            f"Download {index_name}.tif",
+            data=mem,
+            file_name=f"{index_name.lower()}.tif",
+            mime="image/tiff"
+        )
 
 def render_index_on_google_map(index_array, index_name, profile):
     # 1) Hitung bounds dari affine transform
