@@ -156,7 +156,7 @@ def render_index_visualization(index_array, index_name, profile):
         else:
             st.warning("Klik di luar area citra.")
 
-def render_index_on_google_map(index_array, profile):
+def render_index_on_google_map(index_array, index_name, profile):
     # 1) Hitung bounds dari affine transform
     t = profile["transform"]
     w, h = index_array.shape[1], index_array.shape[0]
@@ -318,6 +318,7 @@ elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
         # Beri pilihan tampilkan di Streamlit biasa atau di Google Maps
         use_map = st.checkbox("Tampilkan di Google Map", value=False)
         if use_map:
-            render_index_on_google_map(index_maps[choice], profile)
+            render_index_on_google_map(index_maps[choice], choice, profile)
         else:
             render_index_visualization(index_maps[choice], choice, profile)
+
