@@ -188,61 +188,44 @@ def render_index_visualization(index_array, index_name, profile):
 # 1) Fungsi builder Folium Map dengan caching
 # ====================================================
 @st.cache_data(show_spinner=False)
-def make_folium_map(index_array: np.ndarray,
-                    transform: Affine,
-                    downsample: int = 4):
-    # 1. Downsample array
+def make_folium_map_esri(index_array: np.ndarray, transform: Affine, downsample: int = 4):
     if downsample > 1:
         small = index_array[::downsample, ::downsample]
-        new_transform = Affine(transform.a * downsample,
-                               transform.b,
-                               transform.c,
-                               transform.d,
-                               transform.e * downsample,
-                               transform.f)
+        new_transform = Affine(transform.a * downsample, transform.b, transform.c,
+                               transform.d, transform.e * downsample, transform.f)
     else:
         small = index_array
         new_transform = transform
 
-    # 2. Normalisasi nilai ke 0-1
-    small = np.clip(small, np.nanmin(small), np.nanmax(small))
-    small = (small - np.nanmin(small)) / (np.nanmax(small) - np.nanmin(small) + 1e-10)
-    small = np.nan_to_num(small, nan=0)
-
-    # 3. Hitung batas koordinat
     h, w = small.shape
-    west  = new_transform.c
+    west = new_transform.c
     north = new_transform.f
-    east  = new_transform.c + w * new_transform.a
+    east = new_transform.c + w * new_transform.a
     south = new_transform.f + h * new_transform.e
 
-    # 4. Bangun peta
     m = folium.Map(
         location=[(north + south) / 2, (west + east) / 2],
         zoom_start=18,
-        tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-        attr="Google Satellite",
-        subdomains=["mt0", "mt1", "mt2", "mt3"]
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        attr="Esri World Imagery"
     )
 
     folium.raster_layers.ImageOverlay(
         image=small,
         bounds=[[south, west], [north, east]],
-        colormap=lambda x: tuple(cm.get_cmap("RdYlGn")(x)[:3]),
+        colormap=lambda x: cm.get_cmap("RdYlGn")(x),
         opacity=0.6,
         name="Index"
     ).add_to(m)
     folium.LayerControl().add_to(m)
+
     return m
 
-def render_index_on_google_map(index_array, index_name, profile):
-    st.subheader(f"{index_name} di Google Map")
-    
-    ds = 4  # gunakan nilai downsampling tetap, tidak ditampilkan di UI
 
-    with st.spinner("🔄 Membangun peta Google Satellite…"):
-        m = make_folium_map(index_array, profile["transform"], downsample=ds)
-        data = st_folium(m, width=700, height=500)
+def render_index_on_google_map(index_array, index_name, profile):
+    st.subheader(f"{index_name} di Peta Satelit (Esri)")
+    m = make_folium_map_esri(index_array, profile["transform"], downsample=4)
+    data = st_folium(m, width=700, height=500)
 
     clicked = data.get("last_clicked")
     if clicked:
@@ -256,23 +239,20 @@ def render_index_on_google_map(index_array, index_name, profile):
         else:
             st.warning("Klik di luar area citra.")
 
-    # 4) Filter range seperti sebelumnya
     st.subheader("Filter Index Range")
     mn, mx = float(index_array.min()), float(index_array.max())
     lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
     filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
-    fig2, ax2 = plt.subplots(figsize=(8,6))
+    fig2, ax2 = plt.subplots(figsize=(8, 6))
     im2 = ax2.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
     ax2.axis('off')
     fig2.colorbar(im2, ax=ax2, label=index_name)
     st.pyplot(fig2)
 
-    # 5) Statistik threshold
     st.subheader(f"{index_name} Threshold Analysis")
     stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1, 0.3, 0.5)}
     st.dataframe(pd.DataFrame(stats).round(3))
 
-    # 6) Download GeoTIFF
     st.subheader(f"Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as mem:
