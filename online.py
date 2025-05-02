@@ -107,44 +107,46 @@ def safe_extract_zip(zip_path, extract_to):
         return False
 
 def render_index_visualization(index_array, index_name, profile):
+    # -- Plot dasar dengan Matplotlib
     st.subheader(f"{index_name} Map")
     fig, ax = plt.subplots(figsize=(8,6))
     im = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
     ax.axis('off')
+    fig.colorbar(im, ax=ax, label=index_name)
+    # Simpan figure ke buffer untuk interaktif
     buf = BytesIO()
     fig.savefig(buf, format="png", bbox_inches='tight', dpi=150)
     buf.seek(0)
     st.pyplot(fig)
 
-    st.subheader("Klik atau arahkan cursor untuk melihat koordinat dan nilai indeks")
+    # -- Fitur hover/click koordinat & nilai indeks
+    st.subheader("Klik/Arahkan kursor untuk koordinat & nilai")
     result = streamlit_image_coordinates(buf, key=f"coord_{index_name}")
-    if result is not None:
-        row = int(result['y'])
-        col = int(result['x'])
+    if result:
+        row, col = int(result['y']), int(result['x'])
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             lat = profile['transform'][5] + row * profile['transform'][4]
             lon = profile['transform'][2] + col * profile['transform'][0]
             val = index_array[row, col]
-            st.write(f"📍 Lat: {lat:.6f}, Lon: {lon:.6f}, Value: {val:.3f}")
+            st.write(f"📍 Lat: {lat:.6f}, Lon: {lon:.6f} — {index_name}: {val:.3f}")
 
-    # Slider + Filtered Map + Statistik + Download tetap dilanjutkan seperti sebelumnya...
-
-
+    # -- Slider filter & map hasil filter
     st.subheader("Filter Index Range")
     min_val, max_val = float(np.min(index_array)), float(np.max(index_array))
-    range_values = st.slider(f'Select Range for {index_name}', min_value=min_val, max_value=max_val, value=(min_val, max_val), step=0.01)
-    filtered_array = np.where((index_array >= range_values[0]) & (index_array <= range_values[1]), index_array, np.nan)
+    lo, hi = st.slider(f"Rentang {index_name}", min_val, max_val, (min_val, max_val), 0.01)
+    filtered = np.where((index_array>=lo)&(index_array<=hi), index_array, np.nan)
     fig2, ax2 = plt.subplots(figsize=(8,6))
-    cax2 = ax2.imshow(filtered_array, cmap='RdYlGn', vmin=-1, vmax=1)
-    fig2.colorbar(cax2, ax=ax2, label=index_name)
+    im2 = ax2.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
+    ax2.axis('off')
+    fig2.colorbar(im2, ax=ax2, label=index_name)
     st.pyplot(fig2)
 
+    # -- Statistik threshold
     st.subheader(f"{index_name} Threshold Analysis")
-    thresholds = [0.1, 0.3, 0.5]
-    all_stats = {thr: analyze_index_threshold(index_array, thr) for thr in thresholds}
-    df_stats = pd.DataFrame(all_stats).round(3)
-    st.dataframe(df_stats)
+    stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1,0.3,0.5)}
+    st.dataframe(pd.DataFrame(stats).round(3))
 
+    # -- Download GeoTIFF
     st.subheader(f"Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as memfile:
@@ -152,10 +154,10 @@ def render_index_visualization(index_array, index_name, profile):
             dst.write(index_array.astype(rasterio.float32), 1)
         memfile.seek(0)
         st.download_button(
-            label=f"Download {index_name} TIFF",
+            label=f"Download {index_name}",
             data=memfile,
-            file_name=f'{index_name.lower()}_result.tif',
-            mime='image/tiff'
+            file_name=f"{index_name.lower()}.tif",
+            mime="image/tiff"
         )
 
 # ==============================
@@ -165,30 +167,26 @@ st.title("Analisis dan Mosaic Citra Drone Multispektral")
 mode = st.sidebar.radio("Pilih Mode:", ("Manual", "Upload Folder ZIP", "Google Drive ZIP"))
 
 if mode == "Manual":
-    red_file = st.sidebar.file_uploader("Red Band (R.tif)", type=['tif'])
-    nir_file = st.sidebar.file_uploader("NIR Band (NIR.tif)", type=['tif'])
-    rededge_file = st.sidebar.file_uploader("RedEdge Band (RE.tif)", type=['tif'])
-    green_file = st.sidebar.file_uploader("Green Band (G.tif)", type=['tif'])
+    red_file   = st.sidebar.file_uploader("Red Band (R.tif)",   type=['tif'])
+    nir_file   = st.sidebar.file_uploader("NIR Band (NIR.tif)",  type=['tif'])
+    rededge_file = st.sidebar.file_uploader("RedEdge Band (RE.tif) [opsional]", type=['tif'])
+    green_file = st.sidebar.file_uploader("Green Band (G.tif) [opsional]",     type=['tif'])
 
-    index_choice = st.sidebar.selectbox("Pilih Indeks untuk Ditampilkan", ("NDVI", "NDRE", "GNDVI", "SAVI", "LPI", "IPVI"))
+    index_choice = st.sidebar.selectbox("Pilih Indeks:", ("NDVI","NDRE","GNDVI","SAVI","LPI","IPVI"))
 
     if red_file and nir_file:
         with rasterio.open(red_file) as src: red = src.read(1).astype('float64'); profile = src.profile
         with rasterio.open(nir_file) as src: nir = src.read(1).astype('float64')
 
         index_array = None
-        if index_choice == "NDVI":
-            index_array = calculate_ndvi(nir, red)
-        elif index_choice == "SAVI":
-            index_array = calculate_savi(nir, red)
-        elif index_choice == "LPI":
-            index_array = calculate_lpi(nir, red)
-        elif index_choice == "IPVI":
-            index_array = calculate_ipvi(nir, red)
-        elif index_choice == "NDRE" and rededge_file:
+        if   index_choice=="NDVI":  index_array = calculate_ndvi(nir, red)
+        elif index_choice=="SAVI":  index_array = calculate_savi(nir, red)
+        elif index_choice=="LPI":   index_array = calculate_lpi(nir, red)
+        elif index_choice=="IPVI":  index_array = calculate_ipvi(nir, red)
+        elif index_choice=="NDRE" and rededge_file:
             with rasterio.open(rededge_file) as src: rededge = src.read(1).astype('float64')
             index_array = calculate_ndre(nir, rededge)
-        elif index_choice == "GNDVI" and green_file:
+        elif index_choice=="GNDVI" and green_file:
             with rasterio.open(green_file) as src: green = src.read(1).astype('float64')
             index_array = calculate_gndvi(nir, green)
 
@@ -197,69 +195,55 @@ if mode == "Manual":
         else:
             st.warning("Spektrum pendukung belum diupload.")
 
-elif mode in ("Upload Folder ZIP", "Google Drive ZIP"):
+elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
     extract_path = None
+
     if mode == "Upload Folder ZIP":
         zip_file = st.sidebar.file_uploader("Upload ZIP", type=['zip'])
         if zip_file:
-            temp_dir = tempfile.TemporaryDirectory()
-            extract_path = temp_dir.name
-            with ZipFile(zip_file, 'r') as zip_ref:
-                zip_ref.extractall(extract_path)
+            tmp = tempfile.TemporaryDirectory(); extract_path = tmp.name
+            with ZipFile(zip_file, 'r') as z: z.extractall(extract_path)
+
     else:
-        gdrive_url = st.text_input("Link ZIP dari Google Drive")
-        if gdrive_url and st.button("Download"):
-            temp_dir = tempfile.TemporaryDirectory()
-            extract_path = temp_dir.name
-            zip_output = os.path.join(extract_path, "input.zip")
-            gdown.download(gdrive_url, zip_output, quiet=False)
-            safe_extract_zip(zip_output, extract_path)
+        gdrive_url = st.text_input("Link ZIP Google Drive")
+        if gdrive_url and st.sidebar.button("Download"):
+            tmp = tempfile.TemporaryDirectory(); extract_path = tmp.name
+            zip_out = os.path.join(extract_path, "in.zip")
+            gdown.download(gdrive_url, zip_out, quiet=False)
+            safe_extract_zip(zip_out, extract_path)
 
     if extract_path:
-        mrk_file = next((os.path.join(extract_path, f) for f in os.listdir(extract_path) if f.lower().endswith(".mrk")), None)
+        mrk_file = next((os.path.join(extract_path,f) for f in os.listdir(extract_path) if f.lower().endswith(".mrk")), None)
         if mrk_file:
             mrk_data = load_mrk(mrk_file)
             embed_coordinates(extract_path, mrk_data)
 
-        bands = {
-            'R': '_MS_R.TIF',
-            'G': '_MS_G.TIF',
-            'RE': '_MS_RE.TIF',
-            'NIR': '_MS_NIR.TIF'
-        }
-
         output_folder = os.path.join(extract_path, "OUTPUT")
         os.makedirs(output_folder, exist_ok=True)
-        ortho_files = {}
-        for band, pattern in bands.items():
-            files = glob.glob(os.path.join(extract_path, f"*{pattern}"))
-            vrt_path = os.path.join(output_folder, f"{band}.vrt")
-            ortho_path = os.path.join(output_folder, f"orthomosaic_{band}.tif")
-            subprocess.run(["gdalbuildvrt", vrt_path] + files)
-            subprocess.run(["gdal_translate", vrt_path, ortho_path])
-            ortho_files[band] = ortho_path
+        ortho = {}
+        for band, patt in {'R':'_MS_R.TIF','G':'_MS_G.TIF','RE':'_MS_RE.TIF','NIR':'_MS_NIR.TIF'}.items():
+            files = glob.glob(os.path.join(extract_path, f"*{patt}"))
+            vrt = os.path.join(output_folder, f"{band}.vrt")
+            out = os.path.join(output_folder, f"orthomosaic_{band}.tif")
+            subprocess.run(["gdalbuildvrt", vrt] + files, stdout=subprocess.DEVNULL)
+            subprocess.run(["gdal_translate", vrt, out], stdout=subprocess.DEVNULL)
+            ortho[band] = out
 
-        stack_vrt = os.path.join(output_folder, "multispectral_stack.vrt")
-        stack_tif = os.path.join(output_folder, "multispectral_stack.tif")
-        subprocess.run(["gdalbuildvrt", "-separate", stack_vrt,
-                        ortho_files['R'], ortho_files['G'], ortho_files['RE'], ortho_files['NIR']])
-        subprocess.run(["gdal_translate", stack_vrt, stack_tif])
-
+        stack_tif = build_mosaic(extract_path, output_folder)
         with rasterio.open(stack_tif) as src:
-            red = src.read(1).astype('float32')
+            red   = src.read(1).astype('float32')
             green = src.read(2).astype('float32')
-            rededge = src.read(3).astype('float32')
-            nir = src.read(4).astype('float32')
-            meta = src.meta.copy()
+            rededge=src.read(3).astype('float32')
+            nir   = src.read(4).astype('float32')
+            profile = src.meta.copy()
 
         index_maps = {
-            "NDVI": calculate_ndvi(nir, red),
-            "NDRE": calculate_ndre(nir, rededge),
+            "NDVI":  calculate_ndvi(nir, red),
+            "NDRE":  calculate_ndre(nir, rededge),
             "GNDVI": calculate_gndvi(nir, green),
-            "SAVI": calculate_savi(nir, red),
-            "LPI": calculate_lpi(nir, red),
-            "IPVI": calculate_ipvi(nir, red)
+            "SAVI":  calculate_savi(nir, red),
+            "LPI":   calculate_lpi(nir, red),
+            "IPVI":  calculate_ipvi(nir, red)
         }
-
-        index_choice = st.selectbox("Pilih indeks yang ingin ditampilkan", list(index_maps.keys()))
-        render_index_visualization(index_maps[index_choice], index_choice, meta)
+        choice = st.selectbox("Pilih indeks untuk ditampilkan", list(index_maps.keys()))
+        render_index_visualization(index_maps[choice], choice, profile)
