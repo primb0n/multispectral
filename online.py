@@ -62,7 +62,7 @@ def load_mrk(mrk_path):
         lines = file.readlines()
         for line in lines:
             if 'Lat' in line and 'Lon' in line:
-                elements = re.split('[,\s]+', line.strip())
+                elements = re.split(r'[,\s]+', line.strip())
                 lat = lon = None
                 for i, e in enumerate(elements):
                     if e == 'Lat' and i > 0:
