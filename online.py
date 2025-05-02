@@ -126,7 +126,7 @@ def render_index_visualization(index_array, index_name, profile):
 
     # 3) Interaksi: klik/hover untuk dapat (x,y)
     st.subheader("Klik atau arahkan kursor untuk koordinat & nilai")
-    coords = streamlit_image_coordinates(img, key=f"coord_{index_name}", width=600)
+    coords = streamlit_image_coordinates(img, key=f"coord_{index_name}")
     if coords:
         row, col = coords["y"], coords["x"]
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
