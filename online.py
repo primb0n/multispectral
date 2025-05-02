@@ -126,16 +126,32 @@ def render_index_visualization(index_array, index_name, profile):
 
     # 3) Interaksi: klik/hover untuk dapat (x,y)
     st.subheader("Klik atau arahkan kursor untuk koordinat & nilai")
-    coords = streamlit_image_coordinates(img, key=f"coord_{index_name}")
+      # — Skala untuk tampilan width=600 agar klik akurat — 
+    orig_w, orig_h = img.size
+    disp_w = 600
+    disp_h = int(orig_h * disp_w / orig_w)
+    scale_x = orig_w / disp_w
+    scale_y = orig_h / disp_h
+
+    coords = streamlit_image_coordinates(
+        img,
+        key=f"coord_{index_name}",
+        width=disp_w
+    )
+
     if coords:
-        row, col = coords["y"], coords["x"]
+        raw_x = coords["x"] * scale_x
+        raw_y = coords["y"] * scale_y
+        col = int(raw_x)
+        row = int(raw_y)
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
-            # Hitung koordinat geografis
             t = profile["transform"]
             lon = t.c + col * t.a
             lat = t.f + row * t.e
             val = float(index_array[row, col])
             st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}**")
+        else:
+            st.warning("Klik di luar area citra.")
 
     # 4) Filter range seperti sebelumnya
     st.subheader("Filter Index Range")
