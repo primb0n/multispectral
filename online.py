@@ -15,6 +15,9 @@ import gdown
 from streamlit_image_coordinates import streamlit_image_coordinates
 from PIL import Image
 import matplotlib.cm as cm
+import folium
+from streamlit_folium import st_folium
+
 
 # ==============================
 # Fungsi Perhitungan Indeks
@@ -153,6 +156,48 @@ def render_index_visualization(index_array, index_name, profile):
         else:
             st.warning("Klik di luar area citra.")
 
+def render_index_on_google_map(index_array, profile):
+    # 1) Hitung bounds dari affine transform
+    t = profile["transform"]
+    w, h = index_array.shape[1], index_array.shape[0]
+    west  = t.c
+    north = t.f
+    east  = t.c + w * t.a
+    south = t.f + h * t.e
+
+    # 2) Buat folium map dengan tiles Google Satellite
+    m = folium.Map(
+        location=[(north+south)/2, (west+east)/2],
+        zoom_start=18,
+        tiles="https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        attr="Google Satellite",
+        subdomains=["mt0","mt1","mt2","mt3"]
+    )
+
+    # 3) Overlay array sebagai ImageOverlay
+    folium.raster_layers.ImageOverlay(
+        image=index_array,
+        bounds=[[south, west], [north, east]],
+        colormap=lambda x: cm.get_cmap("RdYlGn")(x),
+        opacity=0.6,
+        name="Index"
+    ).add_to(m)
+    folium.LayerControl().add_to(m)
+
+    # 4) Tampilkan di Streamlit dan tangkap klik terakhir
+    st.subheader("Klik di peta untuk koordinat & nilai indeks")
+    data = st_folium(m, width=700, height=500)
+    clicked = data.get("last_clicked")
+    if clicked:
+        lat, lon = clicked["lat"], clicked["lng"]
+        col = int((lon - t.c) / t.a)
+        row = int((lat - t.f) / t.e)
+        if 0 <= row < h and 0 <= col < w:
+            val = float(index_array[row, col])
+            st.write(f"📍 Lat: {lat:.6f}, Lon: {lon:.6f} → Value: **{val:.4f}**")
+        else:
+            st.warning("Klik di luar area citra.")
+
     # 4) Filter range seperti sebelumnya
     st.subheader("Filter Index Range")
     mn, mx = float(index_array.min()), float(index_array.max())
@@ -270,4 +315,9 @@ elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
             "IPVI":  calculate_ipvi(nir, red)
         }
         choice = st.selectbox("Pilih indeks untuk ditampilkan", list(index_maps.keys()))
-        render_index_visualization(index_maps[choice], choice, profile)
+        # Beri pilihan tampilkan di Streamlit biasa atau di Google Maps
+        use_map = st.checkbox("Tampilkan di Google Map", value=False)
+        if use_map:
+            render_index_on_google_map(index_maps[choice], profile)
+        else:
+            render_index_visualization(index_maps[choice], choice, profile)
