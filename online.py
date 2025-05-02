@@ -242,7 +242,7 @@ def make_folium_map(index_array: np.ndarray,
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
     # pilih downsample via slider (opsional)
-    ds = st.slider(4)
+    ds = 4
 
     with st.spinner("🔄 Membangun peta Google Satellite…"):
         m = make_folium_map(index_array, profile["transform"], downsample=ds)
