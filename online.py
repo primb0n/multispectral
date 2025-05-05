@@ -271,7 +271,7 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
 
 
 def render_index_visualization(index_array, index_name, profile):
-    st.subheader(f"{index_name} Map & Interaktif")
+    st.subheader(f"{index_name} Map")
 
     # Konversi array ke RGB untuk ditampilkan sebagai gambar
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
@@ -318,6 +318,8 @@ def render_index_visualization(index_array, index_name, profile):
             )
         else:
             st.warning("Klik di luar area citra.")
+    else:
+    st.markdown("ℹ️ Klik pada gambar untuk melihat nilai **koordinat**, **indeks**, dan **kondisi tanaman**.")
 
     # === Filter rentang indeks
     st.subheader("Filter Berdasarkan Nilai Indeks")
