@@ -472,22 +472,55 @@ def make_folium_map(index_array, transform):
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
 
-    # Tampilkan peta tanpa filter
-    with st.spinner("🔄 Membangun peta berbasis OpenStreetMap..."):
-        m = make_folium_map(index_array, profile["transform"])
-        data = st_folium(m, width=700, height=500)
+    # Konversi ke RGB
+    norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
+    cmap = cm.get_cmap("RdYlGn")
+    rgba = cmap(norm(index_array))[:, :, :3]
+    rgb = (rgba * 255).astype(np.uint8)
+    img = Image.fromarray(rgb)
 
-    # Interaktif klik koordinat
+    # Simpan RGB sebagai PNG sementara
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmpfile:
+        img.save(tmpfile.name)
+        image_path = tmpfile.name
+
+    # Hitung bounds dari citra
+    transform = profile["transform"]
+    h, w = index_array.shape
+    west  = transform.c
+    north = transform.f
+    east  = west + w * transform.a
+    south = north + h * transform.e
+
+    # Buat peta dengan folium
+    m = folium.Map(location=[(north + south) / 2, (west + east) / 2], zoom_start=17)
+    
+    # Tambah popup klik lokasi
+    m.add_child(folium.LatLngPopup())
+
+    # Tampilkan citra di atas peta
+    folium.raster_layers.ImageOverlay(
+        image=image_path,
+        bounds=[[south, west], [north, east]],
+        opacity=0.8,
+        name="Vegetation Index"
+    ).add_to(m)
+
+    folium.LayerControl().add_to(m)
+
+    # Render ke streamlit
+    data = st_folium(m, width=700, height=500)
+
+    # Tampilkan info klik
     clicked = data.get("last_clicked")
     if clicked:
         lat, lon = clicked["lat"], clicked["lng"]
         t = profile["transform"]
         col = int((lon - t.c) / t.a)
         row = int((lat - t.f) / t.e)
-
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             val = float(index_array[row, col])
-            if index_name == "NDVI":   kondisi = classify_ndvi(val)
+            if index_name == "NDVI": kondisi = classify_ndvi(val)
             elif index_name == "NDRE": kondisi = classify_ndre(val)
             elif index_name == "GNDVI": kondisi = classify_gndvi(val)
             elif index_name == "SAVI": kondisi = classify_savi(val)
@@ -499,6 +532,7 @@ def render_index_on_google_map(index_array, index_name, profile):
             st.warning("Klik di luar area citra.")
     else:
         st.markdown("ℹ️ Klik pada peta untuk melihat nilai **koordinat**, **indeks**, dan **kondisi tanaman**.")
+
 
     # Analisis klasifikasi
     st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
