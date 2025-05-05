@@ -19,6 +19,8 @@ import folium
 from streamlit_folium import st_folium
 from affine import Affine
 from streamlit_folium import st_folium
+from PIL import ImageDraw
+
 
 st.set_page_config(
     page_title="🌿 Analisis Vegetasi Multispektral",
