@@ -463,11 +463,8 @@ def make_folium_map(index_array, transform):
         name='Vegetation Index',
         image=image_path,
         bounds=[[south, west], [north, east]],
-        opacity=0.8,
-        interactive=True,
-        cross_origin=False
+        opacity=0.8
     ).add_to(m)
-
 
     folium.LayerControl().add_to(m)
     return m
@@ -475,21 +472,46 @@ def make_folium_map(index_array, transform):
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
 
-    with st.spinner("🔄 Membangun peta berbasis OpenStreetMap..."):
-        m = make_folium_map(index_array, profile["transform"])
-        data = st_folium(m, width=700, height=500, returned_objects=["last_clicked"])
+    # Filter nilai indeks
+    st.subheader("Filter Berdasarkan Nilai Indeks")
+    mn, mx = float(index_array.min()), float(index_array.max())
+    lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
+    filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
 
-    # Menampilkan informasi saat diklik
+    # Filter berdasarkan klasifikasi tanaman
+    st.subheader("Filter Berdasarkan Klasifikasi Tanaman")
+    class_option = st.selectbox(
+        f"Pilih Klasifikasi {index_name} yang Ditampilkan",
+        options=["Semua", "Sangat Sehat", "Sehat", "Kurang Sehat", "Tidak Sehat", "Bukan Tanaman"]
+    )
+
+    if class_option != "Semua":
+        if index_name == "NDVI":
+            mask = np.vectorize(classify_ndvi)(filtered) == class_option
+        elif index_name == "NDRE":
+            mask = np.vectorize(classify_ndre)(filtered) == class_option
+        elif index_name == "GNDVI":
+            mask = np.vectorize(classify_gndvi)(filtered) == class_option
+        elif index_name == "SAVI":
+            mask = np.vectorize(classify_savi)(filtered) == class_option
+        else:
+            mask = np.ones_like(filtered, dtype=bool)
+        filtered = np.where(mask, filtered, np.nan)
+
+    # Bangun peta
+    with st.spinner("🔄 Membangun peta berbasis OpenStreetMap..."):
+        m = make_folium_map(filtered, profile["transform"])
+        data = st_folium(m, width=700, height=500)
+
+    # Klik koordinat
     clicked = data.get("last_clicked")
     if clicked:
         lat, lon = clicked["lat"], clicked["lng"]
         t = profile["transform"]
         col = int((lon - t.c) / t.a)
         row = int((lat - t.f) / t.e)
-
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             val = float(index_array[row, col])
-
             if index_name == "NDVI":
                 kondisi = classify_ndvi(val)
             elif index_name == "NDRE":
@@ -500,14 +522,12 @@ def render_index_on_google_map(index_array, index_name, profile):
                 kondisi = classify_savi(val)
             else:
                 kondisi = "-"
-
-            st.markdown(
-                f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**"
-            )
+            
+            st.markdown(f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**")
         else:
             st.warning("Klik di luar area citra.")
     else:
-        st.markdown("ℹ️ Klik pada gambar peta untuk melihat nilai **koordinat**, **indeks**, dan **kondisi tanaman**.")
+        st.markdown("ℹ️ Klik pada peta untuk melihat nilai **koordinat**, **indeks**, dan **kondisi tanaman**.")
 
     # Analisis klasifikasi
     st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
@@ -527,16 +547,13 @@ def render_index_on_google_map(index_array, index_name, profile):
     elif index_name == "SAVI":
         summary = analyze_classification(index_array, classify_savi, pixel_area)
 
-    st.dataframe(
-        summary.rename(columns={
-            "Jumlah Pixel": "Jumlah Piksel",
-            "Percentase (%)": "Persentase (%)",
-            "Estimasi Area (m²)": "Luas (m²)"
-        }),
-        hide_index=True
-    )
+    st.dataframe(summary.rename(columns={
+        "Jumlah Pixel": "Jumlah Piksel",
+        "Percentase (%)": "Persentase (%)",
+        "Estimasi Area (m²)": "Luas (m²)"
+    }), hide_index=True)
 
-    # Tombol download
+    # Download GeoTIFF
     st.subheader(f"⬇️ Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as mem:
@@ -550,14 +567,13 @@ def render_index_on_google_map(index_array, index_name, profile):
             mime="image/tiff"
         )
 
-    # RGB Download
+    # Download RGB PNG
     st.subheader(f"⬇️ Download {index_name} RGB (Berwarna)")
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
     cmap = cm.get_cmap('RdYlGn')
     rgba = cmap(norm(index_array))[:, :, :3]
     rgb = (rgba * 255).astype('uint8')
     rgb_img = Image.fromarray(rgb)
-
     with BytesIO() as rgb_buffer:
         rgb_img.save(rgb_buffer, format="PNG")
         st.download_button(
@@ -566,7 +582,6 @@ def render_index_on_google_map(index_array, index_name, profile):
             file_name=f"{index_name.lower()}_rgb.png",
             mime="image/png"
         )
-
 
 # ==============================
 # Streamlit App
@@ -706,11 +721,7 @@ elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
         # Beri pilihan tampilkan di Streamlit biasa atau di Google Maps
         use_map = st.checkbox("Tampilkan di Google Map", value=False)
         if use_map:
-            st.info("🔍 Filter indeks & klasifikasi hanya tersedia di tampilan statik.")
-            render_index_on_google_map(index_array, choice, profile)
+            render_index_on_google_map(index_maps[choice], choice, profile)
         else:
-            render_index_visualization(index_array, choice, profile)
-
-
-
+            render_index_visualization(index_maps[choice], choice, profile)
 
