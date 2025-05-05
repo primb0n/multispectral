@@ -252,6 +252,41 @@ def classify_savi(value):
     else:
         return "Bukan Tanaman"
 
+def get_index_range_by_class(index_name, class_name):
+    if index_name == "NDVI":
+        return {
+            "Sangat Sehat": (0.66, 1.0),
+            "Sehat": (0.33, 0.66),
+            "Kurang Sehat": (0.1, 0.33),
+            "Tidak Sehat": (0.0, 0.1),
+            "Bukan Tanaman": (-1.0, 0.0)
+        }.get(class_name, None)
+    elif index_name == "NDRE":
+        return {
+            "Sangat Sehat": (0.45, 1.0),
+            "Sehat": (0.3, 0.45),
+            "Kurang Sehat": (0.15, 0.3),
+            "Tidak Sehat": (0.0, 0.15),
+            "Bukan Tanaman": (-1.0, 0.0)
+        }.get(class_name, None)
+    elif index_name == "GNDVI":
+        return {
+            "Sangat Sehat": (0.6, 1.0),
+            "Sehat": (0.4, 0.6),
+            "Kurang Sehat": (0.2, 0.4),
+            "Tidak Sehat": (0.0, 0.2),
+            "Bukan Tanaman": (-1.0, 0.0)
+        }.get(class_name, None)
+    elif index_name == "SAVI":
+        return {
+            "Sangat Sehat": (0.5, 1.0),
+            "Sehat": (0.3, 0.5),
+            "Kurang Sehat": (0.15, 0.3),
+            "Tidak Sehat": (0.0, 0.15),
+            "Bukan Tanaman": (-1.0, 0.0)
+        }.get(class_name, None)
+    return None
+
 def analyze_classification(index_array, classify_func, pixel_area=0.45):
     flat = index_array.flatten()
     flat = flat[~np.isnan(flat)]  # hindari nilai NaN
@@ -273,46 +308,36 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
 def render_index_visualization(index_array, index_name, profile):
     st.subheader(f"{index_name} Map")
 
-    # Konversi array ke RGB untuk ditampilkan sebagai gambar
+    # Konversi array ke RGB untuk tampilan klik
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
     cmap = cm.get_cmap('RdYlGn')
     rgba = cmap(norm(index_array))
     rgb = (rgba[:, :, :3] * 255).astype('uint8')
     img = Image.fromarray(rgb)
 
-    # Hitung ukuran tampilan proporsional
+    # Ukuran tampilan
     orig_w, orig_h = img.size
     disp_w = 600
     disp_h = int(orig_h * disp_w / orig_w)
     scale_x = orig_w / disp_w
     scale_y = orig_h / disp_h
 
-    # Gambar interaktif
+    # Interaktif klik
     coords = streamlit_image_coordinates(img, key=f"coord_{index_name}", width=disp_w)
-
-    # Tampilkan informasi jika diklik
     if coords:
         raw_x = coords["x"] * scale_x
         raw_y = coords["y"] * scale_y
-        col = int(raw_x)
-        row = int(raw_y)
+        col, row = int(raw_x), int(raw_y)
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             t = profile["transform"]
             lon = t.c + col * t.a
             lat = t.f + row * t.e
             val = float(index_array[row, col])
-
-            if index_name == "NDVI":
-                kondisi = classify_ndvi(val)
-            elif index_name == "NDRE":
-                kondisi = classify_ndre(val)
-            elif index_name == "GNDVI":
-                kondisi = classify_gndvi(val)
-            elif index_name == "SAVI":
-                kondisi = classify_savi(val)
-            else:
-                kondisi = "-"
-
+            if index_name == "NDVI":   kondisi = classify_ndvi(val)
+            elif index_name == "NDRE": kondisi = classify_ndre(val)
+            elif index_name == "GNDVI": kondisi = classify_gndvi(val)
+            elif index_name == "SAVI": kondisi = classify_savi(val)
+            else: kondisi = "-"
             st.markdown(
                 f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**"
             )
@@ -321,12 +346,6 @@ def render_index_visualization(index_array, index_name, profile):
     else:
         st.markdown("ℹ️ Klik pada gambar untuk melihat nilai **koordinat**, **indeks**, dan **kondisi tanaman**.")
 
-    # === Filter rentang indeks
-    st.subheader("Filter Berdasarkan Nilai Indeks")
-    mn, mx = float(index_array.min()), float(index_array.max())
-    lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
-    filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
-
     # === Filter berdasarkan klasifikasi tanaman
     st.subheader("Filter Berdasarkan Klasifikasi Tanaman")
     class_option = st.selectbox(
@@ -334,6 +353,17 @@ def render_index_visualization(index_array, index_name, profile):
         options=["Semua", "Sangat Sehat", "Sehat", "Kurang Sehat", "Tidak Sehat", "Bukan Tanaman"]
     )
 
+    # Rentang awal
+    mn, mx = float(index_array.min()), float(index_array.max())
+    class_range = get_index_range_by_class(index_name, class_option) if class_option != "Semua" else None
+    default_lo, default_hi = class_range if class_range else (mn, mx)
+
+    # === Filter berdasarkan nilai indeks
+    st.subheader("Filter Berdasarkan Nilai Indeks")
+    lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (default_lo, default_hi), step=0.01)
+    filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
+
+    # Filter klasifikasi
     if class_option != "Semua":
         if index_name == "NDVI":
             mask = np.vectorize(classify_ndvi)(index_array) == class_option
@@ -347,30 +377,25 @@ def render_index_visualization(index_array, index_name, profile):
             mask = np.ones_like(index_array, dtype=bool)
         filtered = np.where(mask, filtered, np.nan)
 
-    # Tampilkan hasil filter
-    fig2, ax2 = plt.subplots(figsize=(8, 6))
-    im2 = ax2.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
-    ax2.axis('off')
-    fig2.colorbar(im2, ax=ax2, label=index_name)
-    st.pyplot(fig2)
+    # Gambar hasil filter
+    fig, ax = plt.subplots(figsize=(8, 6))
+    im = ax.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
+    ax.axis('off')
+    fig.colorbar(im, ax=ax, label=index_name)
+    st.pyplot(fig)
 
-    # Analisis klasifikasi
+    # === Analisis klasifikasi
     st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
     try:
         pixel_area = profile["transform"].a * abs(profile["transform"].e)
-        if pixel_area == 0:
-            pixel_area = 0.25
+        if pixel_area == 0: pixel_area = 0.25
     except:
         pixel_area = 0.25
 
-    if index_name == "NDVI":
-        summary = analyze_classification(index_array, classify_ndvi, pixel_area)
-    elif index_name == "NDRE":
-        summary = analyze_classification(index_array, classify_ndre, pixel_area)
-    elif index_name == "GNDVI":
-        summary = analyze_classification(index_array, classify_gndvi, pixel_area)
-    elif index_name == "SAVI":
-        summary = analyze_classification(index_array, classify_savi, pixel_area)
+    if index_name == "NDVI":   summary = analyze_classification(index_array, classify_ndvi, pixel_area)
+    elif index_name == "NDRE": summary = analyze_classification(index_array, classify_ndre, pixel_area)
+    elif index_name == "GNDVI": summary = analyze_classification(index_array, classify_gndvi, pixel_area)
+    elif index_name == "SAVI": summary = analyze_classification(index_array, classify_savi, pixel_area)
 
     st.dataframe(summary.rename(columns={
         "Jumlah Pixel": "Jumlah Piksel",
@@ -378,7 +403,7 @@ def render_index_visualization(index_array, index_name, profile):
         "Estimasi Area (m²)": "Luas (m²)"
     }), hide_index=True)
 
-    # Download GeoTIFF
+    # === Download GeoTIFF
     st.subheader(f"⬇️ Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as mem:
@@ -392,7 +417,7 @@ def render_index_visualization(index_array, index_name, profile):
             mime="image/tiff"
         )
 
-    # Download RGB PNG
+    # === Download PNG RGB
     st.subheader(f"⬇️ Download {index_name} RGB (Berwarna)")
     with BytesIO() as rgb_buffer:
         img.save(rgb_buffer, format="PNG")
