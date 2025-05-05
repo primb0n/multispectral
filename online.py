@@ -269,27 +269,29 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
 
 
 def render_index_visualization(index_array, index_name, profile):
-    st.subheader(f"{index_name} Map")
+    st.subheader(f"{index_name} Map & Interaktif")
 
-    # Buat RGB image untuk streamlit_image_coordinates
+    # Konversi array ke RGB untuk koordinat klik
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
     cmap = cm.get_cmap('RdYlGn')
     rgba = cmap(norm(index_array))
     rgb = (rgba[:, :, :3] * 255).astype('uint8')
     img = Image.fromarray(rgb)
 
-    # Siapkan ukuran tampilan
+    # Hitung ukuran tampilan proporsional
     orig_w, orig_h = img.size
     disp_w = 600
     disp_h = int(orig_h * disp_w / orig_w)
     scale_x = orig_w / disp_w
     scale_y = orig_h / disp_h
 
-    # Koordinat klik
     coords = streamlit_image_coordinates(img, key=f"coord_{index_name}", width=disp_w)
 
-    # Tampilkan gambar
-    fig, ax = plt.subplots(figsize=(8, 6))
+    # Plot matplotlib satu kali (gambar utama)
+    aspect_ratio = index_array.shape[1] / index_array.shape[0]
+    fig_width = 8
+    fig_height = fig_width / aspect_ratio
+    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
     im = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
     ax.axis('off')
 
@@ -313,34 +315,34 @@ def render_index_visualization(index_array, index_name, profile):
                 kondisi = classify_savi(val)
             else:
                 kondisi = "-"
-            st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}** → 🌿 **{kondisi}**")
 
-            # Tambahkan pin dan label
+            st.markdown(
+                f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**"
+            )
+
             ax.plot(col, row, 'ro', markersize=8)
             ax.text(
                 col, row - 10, kondisi,
                 color='black', fontsize=10, ha='center', va='bottom',
                 bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.7)
             )
-        else:
-            st.warning("Klik di luar area citra.")
 
     fig.colorbar(im, ax=ax, label=index_name)
     st.pyplot(fig)
 
-    # 4) Filter range
-    st.subheader("Filter Index Range")
+    # Filter rentang
+    st.subheader("🎚️ Filter Index Range")
     mn, mx = float(index_array.min()), float(index_array.max())
     lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
     filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
-    fig2, ax2 = plt.subplots(figsize=(8,6))
+    fig2, ax2 = plt.subplots(figsize=(8, 6))
     im2 = ax2.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
     ax2.axis('off')
     fig2.colorbar(im2, ax=ax2, label=index_name)
     st.pyplot(fig2)
 
-    # 5) Analisis klasifikasi
-    st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
+    # Analisis klasifikasi
+    st.subheader(f"📊 Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
     try:
         pixel_area = profile["transform"].a * abs(profile["transform"].e)
         if pixel_area == 0:
@@ -363,8 +365,8 @@ def render_index_visualization(index_array, index_name, profile):
         "Estimasi Area (m²)": "Luas (m²)"
     }), hide_index=True)
 
-    # 6) Download GeoTIFF
-    st.subheader(f"Download {index_name} GeoTIFF")
+    # Download GeoTIFF
+    st.subheader(f"⬇️ Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as mem:
         with rasterio.open(mem, 'w', **profile) as dst:
@@ -377,8 +379,8 @@ def render_index_visualization(index_array, index_name, profile):
             mime="image/tiff"
         )
 
-    # 7) Download RGB Image
-    st.subheader(f"Download {index_name} RGB (Berwarna)")
+    # Download RGB PNG
+    st.subheader(f"⬇️ Download {index_name} RGB (Berwarna)")
     with BytesIO() as rgb_buffer:
         img.save(rgb_buffer, format="PNG")
         st.download_button(
@@ -387,6 +389,7 @@ def render_index_visualization(index_array, index_name, profile):
             file_name=f"{index_name.lower()}_rgb.png",
             mime="image/png"
         )
+
 
 
 # 1) Fungsi builder Folium Map dengan caching
