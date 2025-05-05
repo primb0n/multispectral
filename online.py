@@ -472,58 +472,29 @@ def make_folium_map(index_array, transform):
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
 
-    # Filter nilai indeks
-    st.subheader("Filter Berdasarkan Nilai Indeks")
-    mn, mx = float(index_array.min()), float(index_array.max())
-    lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
-    filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
-
-    # Filter berdasarkan klasifikasi tanaman
-    st.subheader("Filter Berdasarkan Klasifikasi Tanaman")
-    class_option = st.selectbox(
-        f"Pilih Klasifikasi {index_name} yang Ditampilkan",
-        options=["Semua", "Sangat Sehat", "Sehat", "Kurang Sehat", "Tidak Sehat", "Bukan Tanaman"]
-    )
-
-    if class_option != "Semua":
-        if index_name == "NDVI":
-            mask = np.vectorize(classify_ndvi)(filtered) == class_option
-        elif index_name == "NDRE":
-            mask = np.vectorize(classify_ndre)(filtered) == class_option
-        elif index_name == "GNDVI":
-            mask = np.vectorize(classify_gndvi)(filtered) == class_option
-        elif index_name == "SAVI":
-            mask = np.vectorize(classify_savi)(filtered) == class_option
-        else:
-            mask = np.ones_like(filtered, dtype=bool)
-        filtered = np.where(mask, filtered, np.nan)
-
-    # Bangun peta
+    # Tampilkan peta tanpa filter
     with st.spinner("🔄 Membangun peta berbasis OpenStreetMap..."):
-        m = make_folium_map(filtered, profile["transform"])
+        m = make_folium_map(index_array, profile["transform"])
         data = st_folium(m, width=700, height=500)
 
-    # Klik koordinat
+    # Interaktif klik koordinat
     clicked = data.get("last_clicked")
     if clicked:
         lat, lon = clicked["lat"], clicked["lng"]
         t = profile["transform"]
         col = int((lon - t.c) / t.a)
         row = int((lat - t.f) / t.e)
+
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             val = float(index_array[row, col])
-            if index_name == "NDVI":
-                kondisi = classify_ndvi(val)
-            elif index_name == "NDRE":
-                kondisi = classify_ndre(val)
-            elif index_name == "GNDVI":
-                kondisi = classify_gndvi(val)
-            elif index_name == "SAVI":
-                kondisi = classify_savi(val)
-            else:
-                kondisi = "-"
-            
-            st.markdown(f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**")
+            if index_name == "NDVI":   kondisi = classify_ndvi(val)
+            elif index_name == "NDRE": kondisi = classify_ndre(val)
+            elif index_name == "GNDVI": kondisi = classify_gndvi(val)
+            elif index_name == "SAVI": kondisi = classify_savi(val)
+            else: kondisi = "-"
+            st.markdown(
+                f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**"
+            )
         else:
             st.warning("Klik di luar area citra.")
     else:
@@ -552,6 +523,7 @@ def render_index_on_google_map(index_array, index_name, profile):
         "Percentase (%)": "Persentase (%)",
         "Estimasi Area (m²)": "Luas (m²)"
     }), hide_index=True)
+
 
     # Download GeoTIFF
     st.subheader(f"⬇️ Download {index_name} GeoTIFF")
