@@ -162,12 +162,21 @@ def classify_savi(value):
 
 def analyze_classification(index_array, classify_func, pixel_area=0.45):
     flat = index_array.flatten()
+    flat = flat[~np.isnan(flat)]  # hindari nilai NaN
+
     classes = [classify_func(val) for val in flat]
     df = pd.DataFrame({'Class': classes})
-    summary = df['Class'].value_counts().sort_index().to_frame('Jumlah Pixel')
+    summary = df['Class'].value_counts().reset_index()
+    summary.columns = ['Kondisi Tanaman', 'Jumlah Pixel']
+    
+    desired_order = ["Sangat Sehat", "Sehat", "Kurang Sehat", "Tidak Sehat", "Bukan Tanaman"]
+    summary['Kondisi Tanaman'] = pd.Categorical(summary['Kondisi Tanaman'], categories=desired_order, ordered=True)
+    summary = summary.sort_values('Kondisi Tanaman')
+
     summary['Percentase (%)'] = (summary['Jumlah Pixel'] / len(flat) * 100).round(2)
     summary['Estimasi Area (m²)'] = (summary['Jumlah Pixel'] * pixel_area).round(2)
     return summary
+
 
 def render_index_visualization(index_array, index_name, profile):
     st.subheader(f"{index_name} Map")
@@ -225,7 +234,13 @@ def render_index_visualization(index_array, index_name, profile):
 
     # 5) Statistik threshold
     st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
-    pixel_area = profile["transform"].a * abs(profile["transform"].e)  # m² per pixel
+    try:
+        pixel_area = profile["transform"].a * abs(profile["transform"].e)
+        if pixel_area == 0:
+            pixel_area = 0.25  # fallback
+    except:
+        pixel_area = 0.25
+
 
     if index_name == "NDVI":
         summary = analyze_classification(index_array, classify_ndvi, pixel_area)
