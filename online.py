@@ -217,7 +217,18 @@ def render_index_visualization(index_array, index_name, profile):
             lon = t.c + col * t.a
             lat = t.f + row * t.e
             val = float(index_array[row, col])
-            st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}**")
+            if index_name == "NDVI":
+                kondisi = classify_ndvi(val)
+            elif index_name == "NDRE":
+                kondisi = classify_ndre(val)
+            elif index_name == "GNDVI":
+                kondisi = classify_gndvi(val)
+            elif index_name == "SAVI":
+                kondisi = classify_savi(val)
+            else:
+                kondisi = "-"
+            
+            st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}** → 🌿 **{kondisi}**")
         else:
             st.warning("Klik di luar area citra.")
 
@@ -348,7 +359,18 @@ def render_index_on_google_map(index_array, index_name, profile):
         row = int((lat - t.f) / t.e)
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             val = float(index_array[row, col])
-            st.write(f"📍 Lat: **{lat:.6f}**, Lon: **{lon:.6f}** → {index_name}: **{val:.4f}**")
+            if index_name == "NDVI":
+                kondisi = classify_ndvi(val)
+            elif index_name == "NDRE":
+                kondisi = classify_ndre(val)
+            elif index_name == "GNDVI":
+                kondisi = classify_gndvi(val)
+            elif index_name == "SAVI":
+                kondisi = classify_savi(val)
+            else:
+                kondisi = "-"
+            
+            st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}** → 🌿 **{kondisi}**")
         else:
             st.warning("Klik di luar area citra.")
 
@@ -364,9 +386,32 @@ def render_index_on_google_map(index_array, index_name, profile):
     st.pyplot(fig2)
 
     # Analisis threshold
-    st.subheader(f"{index_name} Threshold Analysis")
-    stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1, 0.3, 0.5)}
-    st.dataframe(pd.DataFrame(stats).round(3))
+    st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
+    try:
+        pixel_area = profile["transform"].a * abs(profile["transform"].e)
+        if pixel_area == 0:
+            pixel_area = 0.25  # fallback
+    except:
+        pixel_area = 0.25
+
+
+    if index_name == "NDVI":
+        summary = analyze_classification(index_array, classify_ndvi, pixel_area)
+    elif index_name == "NDRE":
+        summary = analyze_classification(index_array, classify_ndre, pixel_area)
+    elif index_name == "GNDVI":
+        summary = analyze_classification(index_array, classify_gndvi, pixel_area)
+    elif index_name == "SAVI":
+        summary = analyze_classification(index_array, classify_savi, pixel_area)
+    
+    st.dataframe(
+        summary.rename(columns={
+            "Jumlah Pixel": "Jumlah Piksel",
+            "Percentase (%)": "Persentase (%)",
+            "Estimasi Area (m²)": "Luas (m²)"
+        }),
+        hide_index=True
+    )
 
     # Download GeoTIFF
     st.subheader(f"Download {index_name} GeoTIFF")
