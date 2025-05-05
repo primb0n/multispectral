@@ -271,14 +271,14 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
 def render_index_visualization(index_array, index_name, profile):
     st.subheader(f"{index_name} Map & Interaktif")
 
-    # Konversi array ke RGB untuk koordinat klik
+    # Buat RGB image dari indeks untuk koordinat klik
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
     cmap = cm.get_cmap('RdYlGn')
     rgba = cmap(norm(index_array))
     rgb = (rgba[:, :, :3] * 255).astype('uint8')
     img = Image.fromarray(rgb)
 
-    # Hitung ukuran tampilan proporsional
+    # Ukuran gambar tampilan
     orig_w, orig_h = img.size
     disp_w = 600
     disp_h = int(orig_h * disp_w / orig_w)
@@ -287,7 +287,7 @@ def render_index_visualization(index_array, index_name, profile):
 
     coords = streamlit_image_coordinates(img, key=f"coord_{index_name}", width=disp_w)
 
-    # Plot matplotlib satu kali (gambar utama)
+    # Gambar utama dengan anotasi
     aspect_ratio = index_array.shape[1] / index_array.shape[0]
     fig_width = 8
     fig_height = fig_width / aspect_ratio
@@ -305,6 +305,8 @@ def render_index_visualization(index_array, index_name, profile):
             lon = t.c + col * t.a
             lat = t.f + row * t.e
             val = float(index_array[row, col])
+
+            # Klasifikasi kondisi
             if index_name == "NDVI":
                 kondisi = classify_ndvi(val)
             elif index_name == "NDRE":
@@ -317,21 +319,24 @@ def render_index_visualization(index_array, index_name, profile):
                 kondisi = "-"
 
             st.markdown(
-                f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**"
+                f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}`"
             )
 
+            # Tambahkan label dan pin ke gambar
             ax.plot(col, row, 'ro', markersize=8)
             ax.text(
                 col, row - 10, kondisi,
                 color='black', fontsize=10, ha='center', va='bottom',
                 bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.7)
             )
+        else:
+            st.warning("Klik di luar area citra.")
 
     fig.colorbar(im, ax=ax, label=index_name)
     st.pyplot(fig)
 
     # Filter rentang
-    st.subheader("🎚️ Filter Index Range")
+    st.subheader("Filter Index Range")
     mn, mx = float(index_array.min()), float(index_array.max())
     lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
     filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
@@ -342,7 +347,7 @@ def render_index_visualization(index_array, index_name, profile):
     st.pyplot(fig2)
 
     # Analisis klasifikasi
-    st.subheader(f"📊 Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
+    st.subheader(f"Analisis Kesehatan Tanaman ({index_name})")
     try:
         pixel_area = profile["transform"].a * abs(profile["transform"].e)
         if pixel_area == 0:
@@ -379,7 +384,7 @@ def render_index_visualization(index_array, index_name, profile):
             mime="image/tiff"
         )
 
-    # Download RGB PNG
+    # Download RGB
     st.subheader(f"⬇️ Download {index_name} RGB (Berwarna)")
     with BytesIO() as rgb_buffer:
         img.save(rgb_buffer, format="PNG")
@@ -389,8 +394,6 @@ def render_index_visualization(index_array, index_name, profile):
             file_name=f"{index_name.lower()}_rgb.png",
             mime="image/png"
         )
-
-
 
 # 1) Fungsi builder Folium Map dengan caching
 # ====================================================
