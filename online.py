@@ -463,8 +463,11 @@ def make_folium_map(index_array, transform):
         name='Vegetation Index',
         image=image_path,
         bounds=[[south, west], [north, east]],
-        opacity=0.8
+        opacity=0.8,
+        interactive=True,
+        cross_origin=False
     ).add_to(m)
+
 
     folium.LayerControl().add_to(m)
     return m
