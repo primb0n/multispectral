@@ -438,7 +438,7 @@ def make_folium_map(index_array, transform):
         name='Vegetation Index',
         image=image_path,
         bounds=[[south, west], [north, east]],
-        opacity=0.6
+        opacity=0.8
     ).add_to(m)
 
     folium.LayerControl().add_to(m)
