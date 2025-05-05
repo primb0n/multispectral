@@ -273,35 +273,35 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
 def render_index_visualization(index_array, index_name, profile):
     st.subheader(f"{index_name} Map & Interaktif")
 
-    # Konversi ke RGB
+    # Konversi array ke RGB untuk ditampilkan sebagai gambar
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
     cmap = cm.get_cmap('RdYlGn')
-    rgba = cmap(norm(index_array))  # (H, W, 4)
+    rgba = cmap(norm(index_array))
     rgb = (rgba[:, :, :3] * 255).astype('uint8')
     img = Image.fromarray(rgb)
 
-    # Ukuran tampilan
+    # Hitung ukuran tampilan proporsional
     orig_w, orig_h = img.size
     disp_w = 600
     disp_h = int(orig_h * disp_w / orig_w)
     scale_x = orig_w / disp_w
     scale_y = orig_h / disp_h
 
+    # Gambar interaktif
     coords = streamlit_image_coordinates(img, key=f"coord_{index_name}", width=disp_w)
 
+    # Tampilkan informasi jika diklik
     if coords:
         raw_x = coords["x"] * scale_x
         raw_y = coords["y"] * scale_y
         col = int(raw_x)
         row = int(raw_y)
-
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             t = profile["transform"]
             lon = t.c + col * t.a
             lat = t.f + row * t.e
             val = float(index_array[row, col])
 
-            # Klasifikasi
             if index_name == "NDVI":
                 kondisi = classify_ndvi(val)
             elif index_name == "NDRE":
@@ -314,24 +314,12 @@ def render_index_visualization(index_array, index_name, profile):
                 kondisi = "-"
 
             st.markdown(
-                f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}`"
+                f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**"
             )
-
-            # Tambahkan pin dan label ke gambar secara langsung
-            draw = ImageDraw.Draw(img)
-            draw.ellipse((col-5, row-5, col+5, row+5), fill='red')
-            draw.text((col+10, row-10), kondisi, fill='black')
-
-            # Tampilkan ulang gambar setelah ditambahkan label
-            st.image(img, caption=f"{index_name} dengan Label", use_column_width=True)
-
         else:
             st.warning("Klik di luar area citra.")
 
-    else:
-        st.image(img, caption=f"{index_name}", width=disp_w)
-
-    # Filter rentang
+    # Filter rentang indeks
     st.subheader("Filter Index Range")
     mn, mx = float(index_array.min()), float(index_array.max())
     lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
@@ -343,7 +331,7 @@ def render_index_visualization(index_array, index_name, profile):
     st.pyplot(fig2)
 
     # Analisis klasifikasi
-    st.subheader(f"Analisis Kesehatan Tanaman ({index_name})")
+    st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
     try:
         pixel_area = profile["transform"].a * abs(profile["transform"].e)
         if pixel_area == 0:
@@ -380,7 +368,7 @@ def render_index_visualization(index_array, index_name, profile):
             mime="image/tiff"
         )
 
-    # Download RGB
+    # Download RGB PNG
     st.subheader(f"⬇️ Download {index_name} RGB (Berwarna)")
     with BytesIO() as rgb_buffer:
         img.save(rgb_buffer, format="PNG")
