@@ -112,6 +112,63 @@ def safe_extract_zip(zip_path, extract_to):
         st.error("❌ File ZIP tidak valid atau rusak.")
         return False
 
+def classify_ndvi(value):
+    if value > 0.66:
+        return "Sangat Sehat"
+    elif value > 0.33:
+        return "Sehat"
+    elif value > 0.1:
+        return "Kurang Sehat"
+    elif value >= 0.0:
+        return "Tidak Sehat"
+    else:
+        return "Bukan Tanaman"
+
+def classify_ndre(value):
+    if value > 0.45:
+        return "Sangat Sehat"
+    elif value > 0.3:
+        return "Sehat"
+    elif value > 0.15:
+        return "Kurang Sehat"
+    elif value >= 0.0:
+        return "Tidak Sehat"
+    else:
+        return "Bukan Tanaman"
+        
+def classify_gndvi(value):
+    if value > 0.6:
+        return "Sangat Sehat"
+    elif value > 0.4:
+        return "Sehat"
+    elif value > 0.2:
+        return "Kurang Sehat"
+    elif value >= 0.0:
+        return "Tidak Sehat"
+    else:
+        return "Bukan Tanaman"
+
+def classify_savi(value):
+    if value > 0.5:
+        return "Sangat Sehat"
+    elif value > 0.3:
+        return "Sehat"
+    elif value > 0.15:
+        return "Kurang Sehat"
+    elif value >= 0.0:
+        return "Tidak Sehat"
+    else:
+        return "Bukan Tanaman"
+
+def analyze_classification(index_array, classify_func, pixel_area=0.45):
+    flat = index_array.flatten()
+    classes = [classify_func(val) for val in flat]
+    df = pd.DataFrame({'Class': classes})
+    summary = df['Class'].value_counts().sort_index().to_frame('Pixel Count')
+    summary['Percentage (%)'] = (summary['Pixel Count'] / len(flat) * 100).round(2)
+    summary['Estimated Area (m²)'] = (summary['Pixel Count'] * pixel_area).round(2)
+    return summary
+
 def render_index_visualization(index_array, index_name, profile):
     st.subheader(f"{index_name} Map")
     # 1) Tampilkan peta statis dengan matplotlib
@@ -167,9 +224,19 @@ def render_index_visualization(index_array, index_name, profile):
     st.pyplot(fig2)
 
     # 5) Statistik threshold
-    st.subheader(f"{index_name} Threshold Analysis")
-    stats = {thr: analyze_index_threshold(index_array, thr) for thr in (0.1, 0.3, 0.5)}
-    st.dataframe(pd.DataFrame(stats).round(3))
+    st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
+    pixel_area = profile["transform"].a * abs(profile["transform"].e)  # m² per pixel
+
+    if index_name == "NDVI":
+        summary = analyze_classification(index_array, classify_ndvi, pixel_area)
+    elif index_name == "NDRE":
+        summary = analyze_classification(index_array, classify_ndre, pixel_area)
+    elif index_name == "GNDVI":
+        summary = analyze_classification(index_array, classify_gndvi, pixel_area)
+    elif index_name == "SAVI":
+        summary = analyze_classification(index_array, classify_savi, pixel_area)
+    
+    st.dataframe(summary)
 
     # 6) Download GeoTIFF
     st.subheader(f"Download {index_name} GeoTIFF")
