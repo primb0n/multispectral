@@ -1,4 +1,10 @@
 import streamlit as st
+st.set_page_config(
+    page_title="🌿 Analisis Vegetasi Multispektral",
+    page_icon="🌿",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 import numpy as np
 import rasterio
 import pandas as pd
@@ -22,12 +28,6 @@ from streamlit_folium import st_folium
 from PIL import ImageDraw
 
 
-st.set_page_config(
-    page_title="🌿 Analisis Vegetasi Multispektral",
-    page_icon="🌿",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 def inject_premium_css():
     st.markdown("""
