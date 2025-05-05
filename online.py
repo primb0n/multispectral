@@ -447,8 +447,35 @@ def make_folium_map(index_array, transform):
 def render_index_on_google_map(index_array, index_name, profile):
     st.subheader(f"{index_name} di Google Map")
 
+    # Filter nilai indeks
+    st.subheader("Filter Berdasarkan Nilai Indeks")
+    mn, mx = float(index_array.min()), float(index_array.max())
+    lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
+    filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
+
+    # Filter berdasarkan klasifikasi tanaman
+    st.subheader("Filter Berdasarkan Klasifikasi Tanaman")
+    class_option = st.selectbox(
+        f"Pilih Klasifikasi {index_name} yang Ditampilkan",
+        options=["Semua", "Sangat Sehat", "Sehat", "Kurang Sehat", "Tidak Sehat", "Bukan Tanaman"]
+    )
+
+    if class_option != "Semua":
+        if index_name == "NDVI":
+            mask = np.vectorize(classify_ndvi)(filtered) == class_option
+        elif index_name == "NDRE":
+            mask = np.vectorize(classify_ndre)(filtered) == class_option
+        elif index_name == "GNDVI":
+            mask = np.vectorize(classify_gndvi)(filtered) == class_option
+        elif index_name == "SAVI":
+            mask = np.vectorize(classify_savi)(filtered) == class_option
+        else:
+            mask = np.ones_like(filtered, dtype=bool)
+        filtered = np.where(mask, filtered, np.nan)
+
+    # Bangun peta
     with st.spinner("🔄 Membangun peta berbasis OpenStreetMap..."):
-        m = make_folium_map(index_array, profile["transform"])
+        m = make_folium_map(filtered, profile["transform"])
         data = st_folium(m, width=700, height=500)
 
     # Klik koordinat
@@ -471,30 +498,20 @@ def render_index_on_google_map(index_array, index_name, profile):
             else:
                 kondisi = "-"
             
-            st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}** → 🌿 **{kondisi}**")
+            st.markdown(f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}**")
         else:
             st.warning("Klik di luar area citra.")
+    else:
+        st.markdown("ℹ️ Klik pada peta untuk melihat nilai **koordinat**, **indeks**, dan **kondisi tanaman**.")
 
-    # Filter rentang indeks
-    st.subheader("Filter Index Range")
-    mn, mx = float(index_array.min()), float(index_array.max())
-    lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
-    filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
-    fig2, ax2 = plt.subplots(figsize=(8,6))
-    im2 = ax2.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
-    ax2.axis('off')
-    fig2.colorbar(im2, ax=ax2, label=index_name)
-    st.pyplot(fig2)
-
-    # Analisis threshold
+    # Analisis klasifikasi
     st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
     try:
         pixel_area = profile["transform"].a * abs(profile["transform"].e)
         if pixel_area == 0:
-            pixel_area = 0.25  # fallback
+            pixel_area = 0.25
     except:
         pixel_area = 0.25
-
 
     if index_name == "NDVI":
         summary = analyze_classification(index_array, classify_ndvi, pixel_area)
@@ -504,18 +521,15 @@ def render_index_on_google_map(index_array, index_name, profile):
         summary = analyze_classification(index_array, classify_gndvi, pixel_area)
     elif index_name == "SAVI":
         summary = analyze_classification(index_array, classify_savi, pixel_area)
-    
-    st.dataframe(
-        summary.rename(columns={
-            "Jumlah Pixel": "Jumlah Piksel",
-            "Percentase (%)": "Persentase (%)",
-            "Estimasi Area (m²)": "Luas (m²)"
-        }),
-        hide_index=True
-    )
+
+    st.dataframe(summary.rename(columns={
+        "Jumlah Pixel": "Jumlah Piksel",
+        "Percentase (%)": "Persentase (%)",
+        "Estimasi Area (m²)": "Luas (m²)"
+    }), hide_index=True)
 
     # Download GeoTIFF
-    st.subheader(f"Download {index_name} GeoTIFF")
+    st.subheader(f"⬇️ Download {index_name} GeoTIFF")
     profile.update(dtype=rasterio.float32, count=1, compress='lzw', nodata=None)
     with BytesIO() as mem:
         with rasterio.open(mem, 'w', **profile) as dst:
@@ -527,15 +541,14 @@ def render_index_on_google_map(index_array, index_name, profile):
             file_name=f"{index_name.lower()}.tif",
             mime="image/tiff"
         )
-        
-    #Download Citra RGB Berwarna
-    st.subheader(f"Download {index_name} RGB (Berwarna)")
+
+    # Download RGB PNG
+    st.subheader(f"⬇️ Download {index_name} RGB (Berwarna)")
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
     cmap = cm.get_cmap('RdYlGn')
     rgba = cmap(norm(index_array))[:, :, :3]
     rgb = (rgba * 255).astype('uint8')
     rgb_img = Image.fromarray(rgb)
-
     with BytesIO() as rgb_buffer:
         rgb_img.save(rgb_buffer, format="PNG")
         st.download_button(
@@ -544,7 +557,6 @@ def render_index_on_google_map(index_array, index_name, profile):
             file_name=f"{index_name.lower()}_rgb.png",
             mime="image/png"
         )
-
 
 # ==============================
 # Streamlit App
