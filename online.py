@@ -20,6 +20,96 @@ from streamlit_folium import st_folium
 from affine import Affine
 from streamlit_folium import st_folium
 
+st.set_page_config(
+    page_title="🌿 Analisis Vegetasi Multispektral",
+    page_icon="🌿",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+def inject_premium_css():
+    st.markdown("""
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
+
+            html, body, [class*="css"] {
+                font-family: 'Poppins', sans-serif;
+                background-color: #f9f9f9;
+            }
+
+            .block-container {
+                padding-top: 2rem;
+                padding-bottom: 2rem;
+                padding-left: 3rem;
+                padding-right: 3rem;
+            }
+
+            h1 {
+                font-size: 2.5rem;
+                color: #2e7d32;
+                margin-bottom: 1rem;
+            }
+
+            h2, h3 {
+                color: #388e3c;
+                margin-top: 1.5rem;
+                margin-bottom: 1rem;
+            }
+
+            .stButton>button {
+                background-color: #43a047;
+                color: white;
+                font-weight: bold;
+                border-radius: 8px;
+                padding: 0.6rem 1.3rem;
+                border: none;
+                transition: all 0.3s ease;
+            }
+
+            .stButton>button:hover {
+                background-color: #2e7d32;
+                transform: scale(1.02);
+            }
+
+            .stDownloadButton>button {
+                background-color: #1e88e5;
+                color: white;
+                font-weight: bold;
+                border-radius: 8px;
+                padding: 0.6rem 1.3rem;
+                border: none;
+                transition: all 0.3s ease;
+            }
+
+            .stDownloadButton>button:hover {
+                background-color: #1565c0;
+                transform: scale(1.02);
+            }
+
+            .stSlider {
+                padding-top: 1rem;
+                padding-bottom: 1rem;
+            }
+
+            .stSelectbox label, .stRadio label {
+                font-weight: 600;
+                color: #37474f;
+            }
+
+            .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+                margin-top: 0.5rem;
+            }
+
+            /* Table */
+            .stDataFrame {
+                margin-top: 1rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+inject_premium_css()
+
+
 # ==============================
 # Fungsi Perhitungan Indeks
 # ==============================
