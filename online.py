@@ -251,7 +251,14 @@ def render_index_visualization(index_array, index_name, profile):
     elif index_name == "SAVI":
         summary = analyze_classification(index_array, classify_savi, pixel_area)
     
-    st.dataframe(summary)
+    st.dataframe(
+        summary.rename(columns={
+            "Jumlah Pixel": "Jumlah Piksel",
+            "Percentase (%)": "Persentase (%)",
+            "Estimasi Area (m²)": "Luas (m²)"
+        }),
+        hide_index=True
+    )
 
     # 6) Download GeoTIFF
     st.subheader(f"Download {index_name} GeoTIFF")
