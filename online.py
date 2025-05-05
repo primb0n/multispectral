@@ -23,7 +23,7 @@ from PIL import ImageDraw
 
 
 st.set_page_config(
-    page_title="🌿 Analisis Vegetasi Multispektral",
+    page_title="Analisis Vegetasi Multispektral",
     page_icon="🌿",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -608,12 +608,17 @@ with st.expander("📌 Petunjuk Penggunaan", expanded=True):
         - Untuk **GNDVI**: Green + NIR
     3. Pilih indeks vegetasi yang ingin dianalisis.
     4. Pilih tampilan visualisasi:
-        - **Statik (matplotlib)**
-        - **Interaktif (Google Map/OSM)**
+        - **Statik (matplotlib)**: Dapat menampilkan nilai indeks dan koordinat saat diklik.
+        - **Interaktif (Google Map/OSM)**: Citra ditampilkan sebagai overlay, klik menunjukkan koordinat dan indeks.
     5. Klik pada citra untuk melihat:
         - Koordinat (Lat/Lon)
         - Nilai indeks
         - Kondisi kesehatan tanaman
+
+    ### ⚠️ Penting untuk Mode Manual:
+    - File `.tif` **harus sudah memiliki informasi koordinat (geo-referenced)**.
+    - Untuk mencapainya, **koordinat dari file `.mrk` perlu diembed ke file `.tif` secara lokal** sebelum diupload ke aplikasi ini.
+    - Jika belum, gunakan fitur ZIP yang otomatis melakukan embedding dari file `.mrk`.
 
     ### 📁 Format File yang Dibutuhkan:
     - **.tif** untuk citra multispektral
@@ -623,6 +628,7 @@ with st.expander("📌 Petunjuk Penggunaan", expanded=True):
     ---
     🟢 *Silakan pilih mode input dan mulai upload file Anda di sidebar.*    
     """)
+
 
 mode = st.sidebar.radio("Pilih Mode:", ("Manual", "Upload Folder ZIP", "Google Drive ZIP"))
 
