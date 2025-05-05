@@ -180,34 +180,29 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
 
 def render_index_visualization(index_array, index_name, profile):
     st.subheader(f"{index_name} Map")
-    # 1) Tampilkan peta statis dengan matplotlib
-    fig, ax = plt.subplots(figsize=(8,6))
-    im = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
-    ax.axis('off')
-    fig.colorbar(im, ax=ax, label=index_name)
-    st.pyplot(fig)
 
-    # 2) Buat gambar RGB dari array untuk interaksi
+    # Buat RGB image untuk streamlit_image_coordinates
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
     cmap = cm.get_cmap('RdYlGn')
-    rgba = cmap(norm(index_array))         # Bentuk (baris, kolom, 4)
+    rgba = cmap(norm(index_array))
     rgb = (rgba[:, :, :3] * 255).astype('uint8')
     img = Image.fromarray(rgb)
 
-    # 3) Interaksi: klik/hover untuk dapat (x,y)
-    st.subheader("Klik atau arahkan kursor untuk koordinat, nilai, dan klasifikasi tanaman")
+    # Siapkan ukuran tampilan
     orig_w, orig_h = img.size
     disp_w = 600
     disp_h = int(orig_h * disp_w / orig_w)
     scale_x = orig_w / disp_w
     scale_y = orig_h / disp_h
-    
-    coords = streamlit_image_coordinates(
-        img,
-        key=f"coord_{index_name}",
-        width=disp_w
-    )
-    
+
+    # Koordinat klik
+    coords = streamlit_image_coordinates(img, key=f"coord_{index_name}", width=disp_w)
+
+    # Tampilkan gambar
+    fig, ax = plt.subplots(figsize=(8, 6))
+    im = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
+    ax.axis('off')
+
     if coords:
         raw_x = coords["x"] * scale_x
         raw_y = coords["y"] * scale_y
@@ -218,8 +213,6 @@ def render_index_visualization(index_array, index_name, profile):
             lon = t.c + col * t.a
             lat = t.f + row * t.e
             val = float(index_array[row, col])
-    
-            # Klasifikasi berdasarkan indeks
             if index_name == "NDVI":
                 kondisi = classify_ndvi(val)
             elif index_name == "NDRE":
@@ -230,27 +223,22 @@ def render_index_visualization(index_array, index_name, profile):
                 kondisi = classify_savi(val)
             else:
                 kondisi = "-"
-    
-            # Tampilkan informasi
             st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}** → 🌿 **{kondisi}**")
-    
-            # Tampilkan ulang citra dengan pin & label
-            fig_pin, ax_pin = plt.subplots(figsize=(8,6))
-            im_pin = ax_pin.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
-            ax_pin.plot(col, row, 'ro', markersize=8)  # pin merah
-            ax_pin.text(
+
+            # Tambahkan pin dan label
+            ax.plot(col, row, 'ro', markersize=8)
+            ax.text(
                 col, row - 10, kondisi,
                 color='black', fontsize=10, ha='center', va='bottom',
                 bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.7)
             )
-            ax_pin.axis('off')
-            fig_pin.colorbar(im_pin, ax=ax_pin, label=index_name)
-            st.pyplot(fig_pin)
         else:
             st.warning("Klik di luar area citra.")
 
+    fig.colorbar(im, ax=ax, label=index_name)
+    st.pyplot(fig)
 
-    # 4) Filter range seperti sebelumnya
+    # 4) Filter range
     st.subheader("Filter Index Range")
     mn, mx = float(index_array.min()), float(index_array.max())
     lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
@@ -261,15 +249,14 @@ def render_index_visualization(index_array, index_name, profile):
     fig2.colorbar(im2, ax=ax2, label=index_name)
     st.pyplot(fig2)
 
-    # 5) Statistik threshold
+    # 5) Analisis klasifikasi
     st.subheader(f"Analisis Klasifikasi Kesehatan Tanaman ({index_name})")
     try:
         pixel_area = profile["transform"].a * abs(profile["transform"].e)
         if pixel_area == 0:
-            pixel_area = 0.25  # fallback
+            pixel_area = 0.25
     except:
         pixel_area = 0.25
-
 
     if index_name == "NDVI":
         summary = analyze_classification(index_array, classify_ndvi, pixel_area)
@@ -279,15 +266,12 @@ def render_index_visualization(index_array, index_name, profile):
         summary = analyze_classification(index_array, classify_gndvi, pixel_area)
     elif index_name == "SAVI":
         summary = analyze_classification(index_array, classify_savi, pixel_area)
-    
-    st.dataframe(
-        summary.rename(columns={
-            "Jumlah Pixel": "Jumlah Piksel",
-            "Percentase (%)": "Persentase (%)",
-            "Estimasi Area (m²)": "Luas (m²)"
-        }),
-        hide_index=True
-    )
+
+    st.dataframe(summary.rename(columns={
+        "Jumlah Pixel": "Jumlah Piksel",
+        "Percentase (%)": "Persentase (%)",
+        "Estimasi Area (m²)": "Luas (m²)"
+    }), hide_index=True)
 
     # 6) Download GeoTIFF
     st.subheader(f"Download {index_name} GeoTIFF")
@@ -303,16 +287,10 @@ def render_index_visualization(index_array, index_name, profile):
             mime="image/tiff"
         )
 
-    #Download Citra RGB Berwarna
+    # 7) Download RGB Image
     st.subheader(f"Download {index_name} RGB (Berwarna)")
-    norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
-    cmap = cm.get_cmap('RdYlGn')
-    rgba = cmap(norm(index_array))[:, :, :3]
-    rgb = (rgba * 255).astype('uint8')
-    rgb_img = Image.fromarray(rgb)
-
     with BytesIO() as rgb_buffer:
-        rgb_img.save(rgb_buffer, format="PNG")
+        img.save(rgb_buffer, format="PNG")
         st.download_button(
             f"Download {index_name} RGB.png",
             data=rgb_buffer.getvalue(),
