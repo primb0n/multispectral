@@ -319,11 +319,33 @@ def render_index_visualization(index_array, index_name, profile):
         else:
             st.warning("Klik di luar area citra.")
 
-    # Filter rentang indeks
-    st.subheader("Filter Index Range")
+    # === Filter rentang indeks
+    st.subheader("Filter Berdasarkan Nilai Indeks")
     mn, mx = float(index_array.min()), float(index_array.max())
     lo, hi = st.slider(f"Rentang {index_name}", mn, mx, (mn, mx), step=0.01)
     filtered = np.where((index_array >= lo) & (index_array <= hi), index_array, np.nan)
+
+    # === Filter berdasarkan klasifikasi tanaman
+    st.subheader("Filter Berdasarkan Klasifikasi Tanaman")
+    class_option = st.selectbox(
+        f"Pilih Klasifikasi {index_name} yang Ditampilkan",
+        options=["Semua", "Sangat Sehat", "Sehat", "Kurang Sehat", "Tidak Sehat", "Bukan Tanaman"]
+    )
+
+    if class_option != "Semua":
+        if index_name == "NDVI":
+            mask = np.vectorize(classify_ndvi)(index_array) == class_option
+        elif index_name == "NDRE":
+            mask = np.vectorize(classify_ndre)(index_array) == class_option
+        elif index_name == "GNDVI":
+            mask = np.vectorize(classify_gndvi)(index_array) == class_option
+        elif index_name == "SAVI":
+            mask = np.vectorize(classify_savi)(index_array) == class_option
+        else:
+            mask = np.ones_like(index_array, dtype=bool)
+        filtered = np.where(mask, filtered, np.nan)
+
+    # Tampilkan hasil filter
     fig2, ax2 = plt.subplots(figsize=(8, 6))
     im2 = ax2.imshow(filtered, cmap='RdYlGn', vmin=-1, vmax=1)
     ax2.axis('off')
@@ -378,6 +400,7 @@ def render_index_visualization(index_array, index_name, profile):
             file_name=f"{index_name.lower()}_rgb.png",
             mime="image/png"
         )
+
 
 # 1) Fungsi builder Folium Map dengan caching
 # ====================================================
