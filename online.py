@@ -474,7 +474,7 @@ def render_index_on_google_map(index_array, index_name, profile):
 
     with st.spinner("🔄 Membangun peta berbasis OpenStreetMap..."):
         m = make_folium_map(index_array, profile["transform"])
-        data = st_folium(m, width=700, height=500)
+        data = st_folium(m, width=700, height=500, returned_objects=["last_clicked"])
 
     # Menampilkan informasi saat diklik
     clicked = data.get("last_clicked")
