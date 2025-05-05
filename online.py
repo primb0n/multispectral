@@ -271,14 +271,14 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
 def render_index_visualization(index_array, index_name, profile):
     st.subheader(f"{index_name} Map & Interaktif")
 
-    # Buat RGB image dari indeks untuk koordinat klik
+    # Konversi ke RGB
     norm = plt.Normalize(vmin=index_array.min(), vmax=index_array.max())
     cmap = cm.get_cmap('RdYlGn')
-    rgba = cmap(norm(index_array))
+    rgba = cmap(norm(index_array))  # (H, W, 4)
     rgb = (rgba[:, :, :3] * 255).astype('uint8')
     img = Image.fromarray(rgb)
 
-    # Ukuran gambar tampilan
+    # Ukuran tampilan
     orig_w, orig_h = img.size
     disp_w = 600
     disp_h = int(orig_h * disp_w / orig_w)
@@ -287,26 +287,19 @@ def render_index_visualization(index_array, index_name, profile):
 
     coords = streamlit_image_coordinates(img, key=f"coord_{index_name}", width=disp_w)
 
-    # Gambar utama dengan anotasi
-    aspect_ratio = index_array.shape[1] / index_array.shape[0]
-    fig_width = 8
-    fig_height = fig_width / aspect_ratio
-    fig, ax = plt.subplots(figsize=(fig_width, fig_height))
-    im = ax.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
-    ax.axis('off')
-
     if coords:
         raw_x = coords["x"] * scale_x
         raw_y = coords["y"] * scale_y
         col = int(raw_x)
         row = int(raw_y)
+
         if 0 <= row < index_array.shape[0] and 0 <= col < index_array.shape[1]:
             t = profile["transform"]
             lon = t.c + col * t.a
             lat = t.f + row * t.e
             val = float(index_array[row, col])
 
-            # Klasifikasi kondisi
+            # Klasifikasi
             if index_name == "NDVI":
                 kondisi = classify_ndvi(val)
             elif index_name == "NDRE":
@@ -322,18 +315,19 @@ def render_index_visualization(index_array, index_name, profile):
                 f"📍 **Lon:** `{lon:.6f}`, **Lat:** `{lat:.6f}`, **{index_name}:** `{val:.4f}` → 🌿 **{kondisi}`"
             )
 
-            # Tambahkan label dan pin ke gambar
-            ax.plot(col, row, 'ro', markersize=8)
-            ax.text(
-                col, row - 10, kondisi,
-                color='black', fontsize=10, ha='center', va='bottom',
-                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.7)
-            )
+            # Tambahkan pin dan label ke gambar secara langsung
+            draw = ImageDraw.Draw(img)
+            draw.ellipse((col-5, row-5, col+5, row+5), fill='red')
+            draw.text((col+10, row-10), kondisi, fill='black')
+
+            # Tampilkan ulang gambar setelah ditambahkan label
+            st.image(img, caption=f"{index_name} dengan Label", use_column_width=True)
+
         else:
             st.warning("Klik di luar area citra.")
 
-    fig.colorbar(im, ax=ax, label=index_name)
-    st.pyplot(fig)
+    else:
+        st.image(img, caption=f"{index_name}", width=disp_w)
 
     # Filter rentang
     st.subheader("Filter Index Range")
