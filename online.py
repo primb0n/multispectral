@@ -20,6 +20,63 @@ from streamlit_folium import st_folium
 from affine import Affine
 from streamlit_folium import st_folium
 
+# ======== Konfigurasi Tampilan Halaman ========
+st.set_page_config(
+    page_title="Vegetation Index Analyzer",
+    page_icon="🌿",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ======== Tambahkan CSS Custom untuk Profesionalisme ========
+def inject_custom_css():
+    st.markdown("""
+        <style>
+            /* Hilangkan menu dan footer bawaan Streamlit */
+            #MainMenu, footer {visibility: hidden;}
+
+            /* Atur padding halaman utama */
+            .block-container {
+                padding-top: 2rem;
+                padding-bottom: 2rem;
+                padding-left: 2rem;
+                padding-right: 2rem;
+            }
+
+            /* Styling tombol utama */
+            .stButton>button {
+                background-color: #4CAF50;
+                color: white;
+                font-weight: bold;
+                border-radius: 8px;
+                padding: 0.5rem 1.2rem;
+            }
+
+            /* Styling tombol download */
+            .stDownloadButton>button {
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                border-radius: 8px;
+                padding: 0.5rem 1.2rem;
+            }
+
+            /* Styling slider dan widget lain */
+            .stSlider, .stRadio > div {
+                padding-top: 0.5rem;
+                padding-bottom: 0.5rem;
+            }
+
+            /* Header style */
+            h1, h2, h3 {
+                font-family: 'Segoe UI', sans-serif;
+                color: #2e7d32;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+inject_custom_css()
+
 # ==============================
 # Fungsi Perhitungan Indeks
 # ==============================
