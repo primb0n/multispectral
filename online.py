@@ -319,7 +319,7 @@ def render_index_visualization(index_array, index_name, profile):
         else:
             st.warning("Klik di luar area citra.")
     else:
-    st.markdown("ℹ️ Klik pada gambar untuk melihat nilai **koordinat**, **indeks**, dan **kondisi tanaman**.")
+        st.markdown("ℹ️ Klik pada gambar untuk melihat nilai **koordinat**, **indeks**, dan **kondisi tanaman**.")
 
     # === Filter rentang indeks
     st.subheader("Filter Berdasarkan Nilai Indeks")
