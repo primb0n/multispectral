@@ -195,18 +195,19 @@ def render_index_visualization(index_array, index_name, profile):
     img = Image.fromarray(rgb)
 
     # 3) Interaksi: klik/hover untuk dapat (x,y)
-    st.subheader("Klik atau arahkan kursor untuk koordinat & nilai")
+    st.subheader("Klik atau arahkan kursor untuk koordinat, nilai, dan klasifikasi tanaman")
     orig_w, orig_h = img.size
     disp_w = 600
     disp_h = int(orig_h * disp_w / orig_w)
     scale_x = orig_w / disp_w
     scale_y = orig_h / disp_h
-
+    
     coords = streamlit_image_coordinates(
         img,
         key=f"coord_{index_name}",
         width=disp_w
     )
+    
     if coords:
         raw_x = coords["x"] * scale_x
         raw_y = coords["y"] * scale_y
@@ -217,6 +218,8 @@ def render_index_visualization(index_array, index_name, profile):
             lon = t.c + col * t.a
             lat = t.f + row * t.e
             val = float(index_array[row, col])
+    
+            # Klasifikasi berdasarkan indeks
             if index_name == "NDVI":
                 kondisi = classify_ndvi(val)
             elif index_name == "NDRE":
@@ -227,10 +230,25 @@ def render_index_visualization(index_array, index_name, profile):
                 kondisi = classify_savi(val)
             else:
                 kondisi = "-"
-            
+    
+            # Tampilkan informasi
             st.write(f"📍 Lon: **{lon:.6f}**, Lat: **{lat:.6f}**, {index_name}: **{val:.4f}** → 🌿 **{kondisi}**")
+    
+            # Tampilkan ulang citra dengan pin & label
+            fig_pin, ax_pin = plt.subplots(figsize=(8,6))
+            im_pin = ax_pin.imshow(index_array, cmap='RdYlGn', vmin=-1, vmax=1)
+            ax_pin.plot(col, row, 'ro', markersize=8)  # pin merah
+            ax_pin.text(
+                col, row - 10, kondisi,
+                color='black', fontsize=10, ha='center', va='bottom',
+                bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.7)
+            )
+            ax_pin.axis('off')
+            fig_pin.colorbar(im_pin, ax=ax_pin, label=index_name)
+            st.pyplot(fig_pin)
         else:
             st.warning("Klik di luar area citra.")
+
 
     # 4) Filter range seperti sebelumnya
     st.subheader("Filter Index Range")
