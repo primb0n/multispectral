@@ -164,9 +164,9 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
     flat = index_array.flatten()
     classes = [classify_func(val) for val in flat]
     df = pd.DataFrame({'Class': classes})
-    summary = df['Class'].value_counts().sort_index().to_frame('Pixel Count')
-    summary['Percentage (%)'] = (summary['Pixel Count'] / len(flat) * 100).round(2)
-    summary['Estimated Area (m²)'] = (summary['Pixel Count'] * pixel_area).round(2)
+    summary = df['Class'].value_counts().sort_index().to_frame('Jumlah Pixel')
+    summary['Percentase (%)'] = (summary['Pixel Count'] / len(flat) * 100).round(2)
+    summary['Estimasi Area (m²)'] = (summary['Pixel Count'] * pixel_area).round(2)
     return summary
 
 def render_index_visualization(index_array, index_name, profile):
@@ -381,7 +381,38 @@ def render_index_on_google_map(index_array, index_name, profile):
 # ==============================
 # Streamlit App
 # ==============================
-st.title("Analisis dan Mosaic Citra Drone Multispektral")
+st.title("Analisis Indeks Citra Multispektral")
+with st.expander("📌 Petunjuk Penggunaan", expanded=True):
+    st.markdown("""
+    Selamat datang di website **Analisis Indeks Citra Multispektral**.
+
+    ### 🛠️ Langkah-langkah:
+    1. Pilih mode input di sidebar:
+        - **Manual**: Upload file `.tif` satu per satu (Red, NIR, dll).
+        - **Upload Folder ZIP**: Upload file ZIP berisi semua citra dan file `.mrk`.
+        - **Google Drive ZIP**: Tempelkan link file ZIP dari Google Drive.
+    2. Pastikan file yang dibutuhkan tersedia:
+        - Untuk **NDVI, SAVI, LPI, IPVI**: Red + NIR
+        - Untuk **NDRE**: RedEdge + NIR
+        - Untuk **GNDVI**: Green + NIR
+    3. Pilih indeks vegetasi yang ingin dianalisis.
+    4. Pilih tampilan visualisasi:
+        - **Statik (matplotlib)**
+        - **Interaktif (Google Map/OSM)**
+    5. Klik pada citra untuk melihat:
+        - Koordinat (Lat/Lon)
+        - Nilai indeks
+        - Kondisi kesehatan tanaman
+
+    ### 📁 Format File yang Dibutuhkan:
+    - **.tif** untuk citra multispektral
+    - **.mrk** untuk data koordinat GPS drone (jika tersedia)
+    - Folder ZIP berisi minimal 20–25 file `.tif` + 1 file `.mrk`
+
+    ---
+    🟢 *Silakan pilih mode input dan mulai upload file Anda di sidebar.*    
+    """)
+
 mode = st.sidebar.radio("Pilih Mode:", ("Manual", "Upload Folder ZIP", "Google Drive ZIP"))
 
 if mode == "Manual":
