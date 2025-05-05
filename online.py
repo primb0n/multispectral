@@ -165,8 +165,8 @@ def analyze_classification(index_array, classify_func, pixel_area=0.45):
     classes = [classify_func(val) for val in flat]
     df = pd.DataFrame({'Class': classes})
     summary = df['Class'].value_counts().sort_index().to_frame('Jumlah Pixel')
-    summary['Percentase (%)'] = (summary['Pixel Count'] / len(flat) * 100).round(2)
-    summary['Estimasi Area (m²)'] = (summary['Pixel Count'] * pixel_area).round(2)
+    summary['Percentase (%)'] = (summary['Jumlah Pixel'] / len(flat) * 100).round(2)
+    summary['Estimasi Area (m²)'] = (summary['Jumlah Pixel'] * pixel_area).round(2)
     return summary
 
 def render_index_visualization(index_array, index_name, profile):
