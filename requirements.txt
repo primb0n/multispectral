@@ -9,4 +9,3 @@ streamlit-folium
 pillow
 gdown
 affine
-tkinter
