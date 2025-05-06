@@ -7,8 +7,6 @@ import os
 import tempfile
 from io import BytesIO
 from zipfile import ZipFile, BadZipFile
-import tkinter as tk
-from tkinter import filedialog
 import glob
 import subprocess
 import re
@@ -205,11 +203,6 @@ def safe_extract_zip(zip_path, extract_to):
     except BadZipFile:
         st.error("❌ File ZIP tidak valid atau rusak.")
         return False
-
-def pilih_folder():
-    root = tk.Tk()
-    root.withdraw()
-    return filedialog.askdirectory()
 
 def classify_ndvi(value):
     if value > 0.66:
@@ -639,51 +632,16 @@ with st.expander("📌 Petunjuk Penggunaan", expanded=True):
 
 mode = st.sidebar.radio("Pilih Mode:", ("Manual", "Upload Folder ZIP", "Google Drive ZIP"))
 
-import tkinter as tk
-from tkinter import filedialog
-import glob
-
-def pilih_folder():
-    root = tk.Tk()
-    root.withdraw()
-    folder_path = filedialog.askdirectory()
-    root.destroy()
-    return folder_path
-
 if mode == "Manual":
-    st.sidebar.markdown("### Pilih Metode Input Manual:")
-    manual_mode = st.sidebar.radio("Metode Input:", ("Upload File Satu per Satu", "Pilih Folder Otomatis"))
+    red_file   = st.sidebar.file_uploader("Red Band (R.tif)",   type=['tif'])
+    nir_file   = st.sidebar.file_uploader("NIR Band (NIR.tif)", type=['tif'])
+    rededge_file = st.sidebar.file_uploader("RedEdge Band (RE.tif) [opsional]", type=['tif'])
+    green_file = st.sidebar.file_uploader("Green Band (G.tif) [opsional]", type=['tif'])
 
-    index_choice = st.sidebar.selectbox("Pilih Indeks:", ("NDVI", "NDRE", "GNDVI", "SAVI", "LPI", "IPVI"))
+    index_choice = st.sidebar.selectbox("Pilih Indeks:", ("NDVI","NDRE","GNDVI","SAVI","LPI","IPVI"))
 
-    red_file = nir_file = rededge_file = green_file = None
-
-    if manual_mode == "Upload File Satu per Satu":
-        red_file   = st.sidebar.file_uploader("Red Band (_R.tif)", type=['tif'])
-        nir_file   = st.sidebar.file_uploader("NIR Band (_NIR.tif)", type=['tif'])
-        rededge_file = st.sidebar.file_uploader("RedEdge Band (_RE.tif) [opsional]", type=['tif'])
-        green_file   = st.sidebar.file_uploader("Green Band (_G.tif) [opsional]", type=['tif'])
-
-    else:  # Pilih Folder Otomatis
-        if st.sidebar.button("📁 Pilih Folder"):
-            folder_path = pilih_folder()
-            st.session_state['folder_path'] = folder_path
-
-        folder_path = st.session_state.get('folder_path', None)
-        if folder_path:
-            st.sidebar.success(f"Folder terpilih: {os.path.basename(folder_path)}")
-
-            def find_band(suffix):
-                matches = glob.glob(os.path.join(folder_path, f"*{suffix}.tif"))
-                return matches[0] if matches else None
-
-            red_file      = find_band("_R")
-            nir_file      = find_band("_NIR")
-            rededge_file  = find_band("_RE")
-            green_file    = find_band("_G")
-
-    # Lanjutkan proses jika RED & NIR tersedia
     if red_file and nir_file:
+        # Baca RED
         with rasterio.open(red_file) as src:
             red = src.read(1).astype('float64')
             profile = src.profile.copy()
@@ -691,27 +649,26 @@ if mode == "Manual":
             if t.e > 0:  # Koreksi arah sumbu-y jika perlu
                 profile["transform"] = Affine(t.a, t.b, t.c, t.d, -t.e, t.f)
 
+        # Baca NIR
         with rasterio.open(nir_file) as src:
             nir = src.read(1).astype('float64')
 
+        # Hitung indeks yang dipilih
         index_array = None
-        if index_choice == "NDVI":
-            index_array = calculate_ndvi(nir, red)
-        elif index_choice == "SAVI":
-            index_array = calculate_savi(nir, red)
-        elif index_choice == "LPI":
-            index_array = calculate_lpi(nir, red)
-        elif index_choice == "IPVI":
-            index_array = calculate_ipvi(nir, red)
-        elif index_choice == "NDRE" and rededge_file:
+        if   index_choice=="NDVI":  index_array = calculate_ndvi(nir, red)
+        elif index_choice=="SAVI":  index_array = calculate_savi(nir, red)
+        elif index_choice=="LPI":   index_array = calculate_lpi(nir, red)
+        elif index_choice=="IPVI":  index_array = calculate_ipvi(nir, red)
+        elif index_choice=="NDRE" and rededge_file:
             with rasterio.open(rededge_file) as src:
                 rededge = src.read(1).astype('float64')
             index_array = calculate_ndre(nir, rededge)
-        elif index_choice == "GNDVI" and green_file:
+        elif index_choice=="GNDVI" and green_file:
             with rasterio.open(green_file) as src:
                 green = src.read(1).astype('float64')
             index_array = calculate_gndvi(nir, green)
 
+        # Tampilkan hasil
         if index_array is not None:
             use_map = st.checkbox("Tampilkan di Google Map", value=False)
             if use_map:
@@ -720,7 +677,6 @@ if mode == "Manual":
                 render_index_visualization(index_array, index_choice, profile)
         else:
             st.warning("Spektrum pendukung belum diupload.")
-
 
 
 elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
@@ -780,4 +736,3 @@ elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
             render_index_on_google_map(index_maps[choice], choice, profile)
         else:
             render_index_visualization(index_maps[choice], choice, profile)
-
