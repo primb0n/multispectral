@@ -143,6 +143,67 @@ def analyze_index_threshold(index_array, threshold):
         'Percentage Above Threshold': percentage_above
     }
     return stats
+def explain_index(index_name):
+    explanations = {
+        "NDVI": """
+        ### 🟢 Apa itu NDVI?
+        NDVI adalah cara untuk **melihat seberapa sehat tanaman** berdasarkan cahaya yang dipantulkan oleh daun.
+
+        - **Semakin tinggi angkanya (mendekati 1), tanaman semakin hijau dan sehat.**
+        - **Nilai rendah** berarti tanaman kering, mati, atau tidak ada tanaman sama sekali.
+
+        NDVI sangat sering digunakan untuk **memantau kesehatan vegetasi**.
+        """,
+        "NDRE": """
+        ### 🟢 Apa itu NDRE?
+        NDRE digunakan untuk **mengetahui tingkat kesehatan daun bagian dalam**, khususnya kadar **klorofil** (zat hijau daun).
+
+        - Cocok untuk **melihat gejala stres tanaman lebih awal**, bahkan sebelum terlihat oleh mata.
+        - Biasa dipakai untuk memutuskan **kapan harus memupuk atau menyiram**.
+
+        Nilai tinggi → daun aktif dan sehat,  
+        Nilai rendah → kemungkinan butuh perhatian.
+        """,
+        "GNDVI": """
+        ### 🟢 Apa itu GNDVI?
+        GNDVI mirip NDVI, tapi menggunakan **cahaya hijau**.
+
+        - Sangat bagus untuk melihat **kandungan nitrogen** dalam tanaman.
+        - Bisa membantu mengetahui **apakah tanaman kekurangan nutrisi**.
+
+        Jika nilai tinggi, tanaman kemungkinan **cukup nutrisi** dan aktif berfotosintesis.
+        """,
+        "SAVI": """
+        ### 🟢 Apa itu SAVI?
+        SAVI adalah versi NDVI yang sudah diperbaiki supaya lebih akurat di **tanah yang kering atau tidak terlalu banyak tanaman**.
+
+        - Cocok untuk **lahan pertanian gersang** atau area kering.
+        - Membantu membedakan antara tanah dan tanaman.
+
+        Jadi SAVI memberikan gambaran yang lebih adil untuk **tanaman di tanah tandus**.
+        """,
+        "LPI": """
+        ### 🟢 Apa itu LPI?
+        LPI melihat **seberapa banyak pigmen daun** (seperti klorofil) yang ada di tanaman.
+
+        - Nilai tinggi = daun banyak pigmen hijau = tanaman sehat
+        - Nilai rendah = bisa jadi daun mulai menguning
+
+        Mudah dipakai untuk mengetahui apakah daun tanaman sedang **dalam kondisi baik atau menurun**.
+        """,
+        "IPVI": """
+        ### 🟢 Apa itu IPVI?
+        IPVI adalah cara **sederhana dan cepat** untuk menilai seberapa baik kondisi tanaman dari citra udara.
+
+        - Nilainya antara 0 sampai 1.
+        - Semakin besar nilainya, **semakin sehat tanamannya**.
+
+        Cocok jika kamu ingin melihat kondisi tanaman **dengan cepat dan efisien**.
+        """
+    }
+
+    if index_name in explanations:
+        st.markdown(explanations[index_name])
 
 # ==============================
 # Fungsi Tambahan
@@ -710,6 +771,7 @@ if mode == "Manual":
 
         # Tampilkan hasil
         if index_array is not None:
+            explain_index(index_choice)
             use_map = st.checkbox("Tampilkan di Google Map", value=False)
             if use_map:
                 render_index_on_google_map(index_array, index_choice, profile)
@@ -763,6 +825,7 @@ elif mode == "Upload Folder ZIP":
             "IPVI":  calculate_ipvi(nir, red)
         }
         choice = st.selectbox("Pilih indeks untuk ditampilkan", list(index_maps.keys()))
+        explain_index(index_choice)
         # Beri pilihan tampilkan di Streamlit biasa atau di Google Maps
         use_map = st.checkbox("Tampilkan di Google Map", value=False)
         if use_map:
