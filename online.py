@@ -784,12 +784,14 @@ if mode == "Manual":
 elif mode == "Upload Folder ZIP":
     extract_path = None
 
-    if mode == "Upload Folder ZIP":
-        zip_file = st.sidebar.file_uploader("Upload ZIP", type=['zip'])
-        st.sidebar.markdown("📂 *Hanya mendukung format ZIP. Silakan konversi .RAR ke .ZIP sebelum upload.*")
-        if zip_file:
-            tmp = tempfile.TemporaryDirectory(); extract_path = tmp.name
-            with ZipFile(zip_file, 'r') as z: z.extractall(extract_path)
+    zip_file = st.sidebar.file_uploader("Upload ZIP", type=['zip'])
+    st.sidebar.markdown("📂 *Hanya mendukung format ZIP. Silakan konversi .RAR ke .ZIP sebelum upload.*")
+    
+    if zip_file:
+        tmp = tempfile.TemporaryDirectory()
+        extract_path = tmp.name
+        with ZipFile(zip_file, 'r') as z:
+            z.extractall(extract_path)
 
 
     if extract_path:
