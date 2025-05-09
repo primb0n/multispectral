@@ -11,14 +11,12 @@ import glob
 import subprocess
 import re
 from rasterio.transform import from_origin
-import gdown
 from streamlit_image_coordinates import streamlit_image_coordinates
 from PIL import Image
 import matplotlib.cm as cm
 import folium
 from streamlit_folium import st_folium
 from affine import Affine
-from streamlit_folium import st_folium
 from PIL import ImageDraw
 
 
@@ -165,6 +163,43 @@ def load_mrk(mrk_path):
                 if lat is not None and lon is not None:
                     mrk_data.append((lat, lon))
     return mrk_data
+
+def build_mosaic(input_folder, output_folder):
+    """
+    Membuat orthomosaic stack dari 4 file tif (R, G, RE, NIR).
+    Menggunakan gdal_merge.py untuk menggabungkan menjadi stack 4-band.
+    Menampilkan pesan error jika ada file hilang atau proses gagal.
+    """
+    output_stack = os.path.join(output_folder, "stack_4band.tif")
+    band_files = {
+        "R":  os.path.join(output_folder, "orthomosaic_R.tif"),
+        "G":  os.path.join(output_folder, "orthomosaic_G.tif"),
+        "RE": os.path.join(output_folder, "orthomosaic_RE.tif"),
+        "NIR":os.path.join(output_folder, "orthomosaic_NIR.tif")
+    }
+
+    # Cek apakah semua file tersedia
+    missing = [band for band, path in band_files.items() if not os.path.exists(path)]
+    if missing:
+        st.error(f"❌ File tidak ditemukan untuk band: {', '.join(missing)}")
+        return None
+
+    # Jalankan gdal_merge.py
+    try:
+        cmd = [os.path.join(os.environ["VIRTUAL_ENV"], "bin", "gdal_merge.py"), "-separate", "-o", output_stack] + list(band_files.values())
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        if result.returncode != 0:
+            st.error("❌ Gagal menjalankan gdal_merge.py.")
+            st.text(result.stderr)
+            return None
+
+        return output_stack
+
+    except Exception as e:
+        st.error("❌ Terjadi kesalahan saat membuat mosaik stack.")
+        st.text(str(e))
+        return None
 
 def embed_coordinates(tiff_folder, mrk_data, pixel_size=0.001905):
     tif_files = sorted(glob.glob(os.path.join(tiff_folder, '*.tif')))
@@ -595,42 +630,49 @@ def render_index_on_google_map(index_array, index_name, profile):
 st.title("Analisis Indeks Citra Multispektral")
 with st.expander("📌 Petunjuk Penggunaan", expanded=True):
     st.markdown("""
+    📌 Petunjuk Penggunaan
+    
     Selamat datang di website **Analisis Indeks Citra Multispektral**.
-
+    
     ### 🛠️ Langkah-langkah:
     1. Pilih mode input di sidebar:
-        - **Manual**: Upload file `.tif` satu per satu (Red, NIR, dll).
-        - **Upload Folder ZIP**: Upload file ZIP berisi semua citra dan file `.mrk`.
-        - **Google Drive ZIP**: Tempelkan link file ZIP dari Google Drive.
+       - **Manual**: Upload file `.tif` satu per satu (Red, NIR, dll).
+       - **Upload Folder ZIP**: Upload file ZIP berisi semua citra dan file `.mrk`.
+    
     2. Pastikan file yang dibutuhkan tersedia:
-        - Untuk **NDVI, SAVI, LPI, IPVI**: Red + NIR
-        - Untuk **NDRE**: RedEdge + NIR
-        - Untuk **GNDVI**: Green + NIR
+       - Untuk **NDVI, SAVI, LPI, IPVI**: Red + NIR
+       - Untuk **NDRE**: RedEdge + NIR
+       - Untuk **GNDVI**: Green + NIR
+    
     3. Pilih indeks vegetasi yang ingin dianalisis.
+    
     4. Pilih tampilan visualisasi:
-        - **Statik (matplotlib)**: Dapat menampilkan nilai indeks dan koordinat saat diklik.
-        - **Interaktif (Google Map/OSM)**: Citra ditampilkan sebagai overlay, klik menunjukkan koordinat dan indeks.
+       - **Statik (matplotlib)**: Dapat menampilkan nilai indeks dan koordinat saat diklik.
+       - **Interaktif (Google Map/OSM)**: Citra ditampilkan sebagai overlay di atas peta; klik menunjukkan koordinat dan nilai indeks.
+    
     5. Klik pada citra untuk melihat:
-        - Koordinat (Lat/Lon)
-        - Nilai indeks
-        - Kondisi kesehatan tanaman
-
+       - Koordinat (Lat/Lon)
+       - Nilai indeks vegetasi
+       - Kategori kesehatan tanaman
+    
+    ---
+    
     ### ⚠️ Penting untuk Mode Manual:
-    - File `.tif` **harus sudah memiliki informasi koordinat (geo-referenced)**.
-    - Untuk mencapainya, **koordinat dari file `.mrk` perlu diembed ke file `.tif` secara lokal** sebelum diupload ke aplikasi ini.
-    - Jika belum, gunakan fitur ZIP yang otomatis melakukan embedding dari file `.mrk`.
-
+    - File `.tif` **harus memiliki informasi koordinat (geo-referenced)**.
+    - Jika belum, kamu bisa gunakan fitur **ZIP Upload** yang otomatis menanamkan koordinat dari file `.mrk` ke file `.tif`.
+    
     ### 📁 Format File yang Dibutuhkan:
     - **.tif** untuk citra multispektral
     - **.mrk** untuk data koordinat GPS drone (jika tersedia)
-    - Folder ZIP berisi minimal 20–25 file `.tif` + 1 file `.mrk`
-
+    - **ZIP folder** berisi minimal 20–25 file `.tif` + 1 file `.mrk`
+    
     ---
-    🟢 *Silakan pilih mode input dan mulai upload file Anda di sidebar.*    
+    
+    🟢 *Silakan pilih mode input dan mulai upload file Anda di sidebar.*  
     """)
 
 
-mode = st.sidebar.radio("Pilih Mode:", ("Manual", "Upload Folder ZIP", "Google Drive ZIP"))
+mode = st.sidebar.radio("Pilih Mode:", ("Manual", "Upload Folder ZIP"))
 
 if mode == "Manual":
     red_file   = st.sidebar.file_uploader("Red Band (R.tif)",   type=['tif'])
@@ -679,7 +721,7 @@ if mode == "Manual":
             st.warning("Spektrum pendukung belum diupload.")
 
 
-elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
+elif mode == "Upload Folder ZIP":
     extract_path = None
 
     if mode == "Upload Folder ZIP":
@@ -688,13 +730,6 @@ elif mode in ("Upload Folder ZIP","Google Drive ZIP"):
             tmp = tempfile.TemporaryDirectory(); extract_path = tmp.name
             with ZipFile(zip_file, 'r') as z: z.extractall(extract_path)
 
-    else:
-        gdrive_url = st.text_input("Link ZIP Google Drive")
-        if gdrive_url and st.sidebar.button("Download"):
-            tmp = tempfile.TemporaryDirectory(); extract_path = tmp.name
-            zip_out = os.path.join(extract_path, "in.zip")
-            gdown.download(gdrive_url, zip_out, quiet=False)
-            safe_extract_zip(zip_out, extract_path)
 
     if extract_path:
         mrk_file = next((os.path.join(extract_path,f) for f in os.listdir(extract_path) if f.lower().endswith(".mrk")), None)
