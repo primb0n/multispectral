@@ -630,8 +630,6 @@ def render_index_on_google_map(index_array, index_name, profile):
 st.title("Analisis Indeks Citra Multispektral")
 with st.expander("📌 Petunjuk Penggunaan", expanded=True):
     st.markdown("""
-    📌 Petunjuk Penggunaan
-    
     Selamat datang di website **Analisis Indeks Citra Multispektral**.
     
     ### 🛠️ Langkah-langkah:
